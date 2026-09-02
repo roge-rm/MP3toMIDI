@@ -27,8 +27,9 @@ class DrumTranscriber : NoteTranscriber {
         val durationTicks = samplesToTicks((DURATION_SECONDS * stem.sampleRate).toInt(), stem.sampleRate, bpm)
             .coerceAtLeast(1)
 
-        return onsets.map { onsetSample ->
-            val voice = DrumHitClassifier.classify(mono, onsetSample, stem.sampleRate)
+        return onsets.mapIndexed { index, onsetSample ->
+            val nextOnsetSample = onsets.getOrElse(index + 1) { mono.size }
+            val voice = DrumHitClassifier.classify(mono, onsetSample, stem.sampleRate, nextOnsetSample)
             val startTick = samplesToTicks(onsetSample, stem.sampleRate, bpm)
             val localPeak = localPeakAmplitude(mono, onsetSample, stem.sampleRate)
             val velocity = (127f * (localPeak / peakAmplitude)).roundToInt().coerceIn(MIN_VELOCITY, 127)
