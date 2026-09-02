@@ -38,6 +38,12 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
 
     fun setInputUri(uri: Uri) {
         _inputUri.value = uri
+        // The displayed output filename suggestion updates for the new input (see MainScreen),
+        // but that's just text -- without also clearing the actual write target here, it and the
+        // stale outputUri from a previous conversion silently diverge. Convert stays enabled
+        // (outputUri is still non-null) and would silently overwrite that previous file with the
+        // new conversion's output, with nothing on screen to indicate the two ever disagreed.
+        _outputUri.value = null
     }
 
     fun setOutputUri(uri: Uri) {
