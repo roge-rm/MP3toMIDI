@@ -79,6 +79,23 @@ import com.rm.mp3tomidi.util.displayNameOf
 // the app icon's 3-color order, top to bottom) keeps it vivid the whole way across instead.
 private val HeaderGradient = Brush.horizontalGradient(listOf(BrandTeal, BrandYellow, BrandPink))
 
+// Explicit list rather than the "audio/*" wildcard -- that wildcard also matches audio/midi, and
+// a .mid file picked as input doesn't fail cleanly: Android's built-in MIDI softsynth renders it
+// to generic-sounding PCM, which the pipeline then happily separates/transcribes/reclassifies as
+// if it were a real song, producing a nonsensical, degraded MIDI reconstruction instead of an
+// error. Covers common lossy and lossless formats Android's MediaExtractor/MediaCodec can decode.
+private val SUPPORTED_INPUT_MIME_TYPES = arrayOf(
+    "audio/mpeg",
+    "audio/mp4",
+    "audio/aac",
+    "audio/ogg",
+    "audio/opus",
+    "audio/flac",
+    "audio/x-flac",
+    "audio/wav",
+    "audio/x-wav",
+)
+
 @Composable
 fun MainScreen(viewModel: MainViewModel) {
     val context = LocalContext.current
@@ -151,9 +168,14 @@ fun MainScreen(viewModel: MainViewModel) {
             ) {
                 SectionCard(title = "Source") {
                     OutlinedActionButton(
-                        text = stringResource(R.string.select_mp3),
+                        text = stringResource(R.string.choose_input),
                         icon = Icons.Filled.LibraryMusic,
-                        onClick = { openInputLauncher.launch(arrayOf("audio/*")) },
+                        onClick = { openInputLauncher.launch(SUPPORTED_INPUT_MIME_TYPES) },
+                    )
+                    Text(
+                        text = stringResource(R.string.input_formats_hint),
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
                     )
                     FileNameChip(inputFileName ?: stringResource(R.string.no_file_selected))
                     OutlinedActionButton(

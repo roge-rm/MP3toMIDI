@@ -1,6 +1,7 @@
 <resources>
     <string name="app_name">MP3toMIDI</string>
-    <string name="select_mp3">Select MP3</string>
+    <string name="choose_input">Choose input file</string>
+    <string name="input_formats_hint">MP3, WAV, FLAC, AAC, OGG &amp; more</string>
     <string name="choose_output">Choose output file</string>
     <string name="output_file_name">Output file name</string>
     <string name="convert">Convert to MIDI</string>
