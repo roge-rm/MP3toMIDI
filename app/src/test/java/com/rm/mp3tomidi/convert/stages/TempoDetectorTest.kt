@@ -41,6 +41,40 @@ class TempoDetectorTest {
     }
 
     @Test
+    fun `recovers the true tempo from a dominant 3-to-2 backbeat accent`() {
+        // Mirrors a real bug found on two songs (311 "Amber", Netsky "TNT"): a loud accent
+        // recurring every 1.5x the true beat period (a hemiola -- 2 accents per 3 true beats,
+        // the same shape a syncopated backbeat or breakbeat pattern produces) can make the naive
+        // autocorrelation winner land on that accent's own, slower period instead of the true
+        // tempo. A quiet click still marks every true beat, but at only half the loud accent's
+        // amplitude -- enough to be a real competing signal without dominating outright.
+        val trueBpm = 174
+        val quietAmplitude = 0.5f
+        val loudAmplitude = 1f
+        val seconds = 20.0
+        val n = (seconds * sampleRate).toInt()
+        val signal = FloatArray(n)
+        val random = Random(trueBpm)
+        val clickLength = (0.01 * sampleRate).toInt()
+        val period = (60.0 / trueBpm * sampleRate).toInt()
+        val loudPeriod = (1.5 * period).toInt()
+
+        var pos = 0
+        while (pos + clickLength < n) {
+            addClick(signal, pos, clickLength, random, amplitude = quietAmplitude)
+            pos += period
+        }
+        pos = 0
+        while (pos + clickLength < n) {
+            addClick(signal, pos, clickLength, random, amplitude = loudAmplitude)
+            pos += loudPeriod
+        }
+
+        val detected = TempoDetector.detectBpm(signal, sampleRate)
+        assertTrue("expected ~$trueBpm BPM, got $detected", abs(detected - trueBpm) <= 3)
+    }
+
+    @Test
     fun `short audio falls back to the default`() {
         assertEquals(TempoDetector.DEFAULT_BPM, TempoDetector.detectBpm(FloatArray(100), sampleRate))
     }
