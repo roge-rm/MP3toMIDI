@@ -10,7 +10,7 @@ import com.rm.mp3tomidi.midi.GmInstrument
  * clears its confidence threshold.
  */
 class DemucsSourceClassifier : InstrumentClassifier {
-    override suspend fun classify(context: Context, stem: RawStem, notes: List<NoteEvent>): Stem {
+    override suspend fun classify(context: Context, stem: RawStem, notes: List<NoteEvent>, bpm: Int): Stem {
         val (program, isDrumKit) = GM_BY_SOURCE[stem.label] ?: (GmInstrument.ACOUSTIC_GRAND_PIANO to false)
         return Stem(label = stem.label, gmProgram = program, isDrumKit = isDrumKit, notes = notes)
     }

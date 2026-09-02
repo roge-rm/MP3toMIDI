@@ -51,7 +51,7 @@ class ConversionPipeline(
                     "Mapping instruments to GM programs (${index + 1}/${notesByStem.size}: ${raw.label})",
                     lerp(0.8f, 0.95f, index.toFloat() / notesByStem.size),
                 )
-                classifier.classify(context, raw, notes)
+                classifier.classify(context, raw, notes, bpm)
             }
 
             onProgress("Writing MIDI file", 0.95f)

@@ -28,7 +28,7 @@ import com.rm.mp3tomidi.midi.GmInstrument
  */
 object YamnetGmMapping {
 
-    data class GmMatch(val gmProgram: Int, val isDrumKit: Boolean = false)
+    data class GmMatch(val gmProgram: Int, val isDrumKit: Boolean = false, val isGenericSynth: Boolean = false)
 
     val BY_CLASS_INDEX: Map<Int, GmMatch> = buildMap {
         // Singing/vocal classes -- refines the vocals stem's default beyond a fixed Lead Voice.
@@ -62,7 +62,11 @@ object YamnetGmMapping {
         put(150, GmMatch(16)) // Organ -> Drawbar Organ
         put(151, GmMatch(16)) // Electronic organ -> Drawbar Organ
         put(152, GmMatch(16)) // Hammond organ -> Drawbar Organ
-        put(153, GmMatch(81)) // Synthesizer -> Lead 2 (sawtooth)
+        // "Synthesizer" is too generic to commit to a fixed program the way a specific instrument
+        // class can -- a synth could be playing a bassline, a pad, or a plucked arp, each of
+        // which wants a different GM program. Flagged so TimbreClassifier refines this via
+        // NoteEnvelopeClassifier (note shape) instead of taking it at face value.
+        put(153, GmMatch(81, isGenericSynth = true)) // Synthesizer -> Lead 2 (sawtooth), refined
         put(155, GmMatch(6)) // Harpsichord
 
         // Percussion without a melodic GM equivalent -> the drum kit
