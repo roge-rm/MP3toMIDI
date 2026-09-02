@@ -13,12 +13,15 @@ import kotlin.math.roundToInt
  * has one tempo track, and the whole point is to make the exported file's beat grid line up with
  * the source instead of always claiming a fixed 120 BPM regardless of the actual song.
  *
- * Like DrumHitClassifier, there's no ground truth to check this against, only synthetic click
- * tracks at known BPMs (see the test) plus manual sanity-checking on real songs. Autocorrelation
- * of a periodic signal is inherently ambiguous between a tempo and its integer multiples/divisors
- * (half-time, double-time, etc.) -- a mild log-domain prior centered on a typical-song tempo
- * breaks ties among otherwise-similar-strength candidates in favor of the more usual answer, but
- * doesn't rule out a genuine result far from it.
+ * Unlike DrumHitClassifier, this one does have real ground truth available for spot-checking:
+ * published BPM listings (Beatport, Tunebat) for real songs. Autocorrelation of a periodic signal
+ * is inherently ambiguous between a tempo and its integer multiples/divisors (half-time,
+ * double-time, etc.) -- a mild log-domain prior centered on a typical-song tempo breaks ties among
+ * otherwise-similar-strength candidates in favor of the more usual answer. A second, more targeted
+ * cross-check (see [CROSS_CHECK_TEMPO_RATIO]'s doc) additionally corrects a specific non-octave
+ * ambiguity -- a 3:2 ratio -- found on two real syncopated/breakbeat-driven songs. Neither
+ * mechanism guarantees a correct result far outside what's been validated; this remains a
+ * best-effort heuristic, not a solved problem.
  */
 object TempoDetector {
 
@@ -38,6 +41,20 @@ object TempoDetector {
 
     private const val FLUX_EPSILON = 1e-9
 
+    // A syncopated/backbeat-driven rhythm (breakbeats, half-time shuffles) can make the true
+    // tempo's autocorrelation peak weaker than a competing peak at 2/3 of it -- the strongest
+    // recurring feature in the envelope is often the backbeat/off-beat accent, not the underlying
+    // pulse, so the naive argmax locks onto that slower 3:2-related reading instead. Verified on
+    // two real songs where this happened (311 "Amber": detected 110 vs. true 166.7 BPM; Netsky
+    // "TNT": detected 89 vs. true 134 BPM, both independently confirmed against Beatport/Tunebat
+    // listings) -- in both, the correct tempo's *raw* (unbiased) autocorrelation score was 81-97%
+    // of the wrongly-chosen peak's, a clearly competitive runner-up, not noise. On two songs where
+    // the top pick was already correct (Keep Moving, Vision One), the same 1.5x-tempo candidate's
+    // raw score was only 1.6% and 39% of the winner's -- nowhere near competitive. This threshold
+    // sits with margin on both sides of that real 39%/81% split.
+    private const val CROSS_CHECK_TEMPO_RATIO = 1.5
+    private const val CROSS_CHECK_SCORE_RATIO_THRESHOLD = 0.6
+
     fun detectBpm(mono: FloatArray, sampleRate: Int): Int {
         val flux = AudioFilters.energyFlux(mono, FRAME_SIZE, HOP_SIZE)
         val frameRate = sampleRate.toDouble() / HOP_SIZE
@@ -47,17 +64,26 @@ object TempoDetector {
         if (flux.size < 8 || minLag >= maxLag || maxLag >= flux.size - 1) return DEFAULT_BPM
         if (flux.sumOf { it.toDouble() } <= FLUX_EPSILON) return DEFAULT_BPM
 
-        val scores = DoubleArray(maxLag + 1)
+        val rawScores = DoubleArray(maxLag + 1)
+        val biasedScores = DoubleArray(maxLag + 1)
         for (lag in minLag..maxLag) {
             var sum = 0.0
             for (i in 0 until flux.size - lag) sum += flux[i] * flux[i + lag]
-            scores[lag] = sum * tempoPrior(60.0 * frameRate / lag)
+            rawScores[lag] = sum
+            biasedScores[lag] = sum * tempoPrior(60.0 * frameRate / lag)
         }
 
         var bestLag = minLag
-        for (lag in minLag..maxLag) if (scores[lag] > scores[bestLag]) bestLag = lag
+        for (lag in minLag..maxLag) if (biasedScores[lag] > biasedScores[bestLag]) bestLag = lag
 
-        val refinedLag = parabolicRefine(scores, bestLag)
+        val crossCheckLag = (bestLag / CROSS_CHECK_TEMPO_RATIO).roundToInt()
+        if (crossCheckLag in minLag..maxLag &&
+            rawScores[crossCheckLag] >= CROSS_CHECK_SCORE_RATIO_THRESHOLD * rawScores[bestLag]
+        ) {
+            bestLag = crossCheckLag
+        }
+
+        val refinedLag = parabolicRefine(biasedScores, bestLag)
         val bpm = 60.0 * frameRate / refinedLag
         return bpm.roundToInt().coerceIn(MIN_BPM.toInt(), MAX_BPM.toInt())
     }
