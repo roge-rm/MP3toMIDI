@@ -6,9 +6,6 @@ import ai.onnxruntime.OrtSession
 import android.content.Context
 import com.rm.mp3tomidi.midi.MidiConstants
 import com.rm.mp3tomidi.util.PcmUtils
-import java.io.File
-import java.nio.ByteBuffer
-import java.nio.ByteOrder
 import java.nio.FloatBuffer
 import kotlin.math.floor
 import kotlin.math.min
@@ -68,16 +65,9 @@ class BasicPitchTranscriber : NoteTranscriber {
     }
 
     private fun loadAsMono22050(stem: RawStem): FloatArray {
-        val raw = readInterleavedPcm(stem.pcmFile)
+        val raw = PcmUtils.readInterleavedPcm(stem.pcmFile)
         val mono = PcmUtils.remixChannels(raw, stem.channelCount, 1)
         return PcmUtils.resampleLinear(mono, 1, stem.sampleRate, SAMPLE_RATE)
-    }
-
-    private fun readInterleavedPcm(file: File): FloatArray {
-        val buffer = ByteBuffer.wrap(file.readBytes()).order(ByteOrder.LITTLE_ENDIAN).asFloatBuffer()
-        val out = FloatArray(buffer.remaining())
-        buffer.get(out)
-        return out
     }
 
     /** Pads by half the overlap at the start, then slices into fixed AUDIO_N_SAMPLES windows. */
