@@ -1,0 +1,11 @@
+<resources>
+    <string name="app_name">MP3toMIDI</string>
+    <string name="select_mp3">Select MP3</string>
+    <string name="choose_output">Choose output file</string>
+    <string name="output_file_name">Output file name</string>
+    <string name="convert">Convert to MIDI</string>
+    <string name="play">Play</string>
+    <string name="pause">Pause</string>
+    <string name="no_file_selected">No file selected</string>
+    <string name="conversion_channel_name">MP3 to MIDI conversion</string>
+</resources>
