@@ -3,6 +3,11 @@
 Converts `htdemucs_6s` (drums/bass/other/vocals/guitar/piano, the highest-quality 6-stem
 Demucs model) to ONNX so `DemucsStemSeparator` can run it on-device via ONNX Runtime Mobile.
 
+The exported file (~235MB) isn't bundled in the app or committed to this repo -- it's
+published as a GitHub Release asset and downloaded once on first use (`ModelProvider`),
+verified by SHA-256, then cached in app-private storage. Every conversion after that runs
+fully offline.
+
 ## Why this isn't a plain `torch.onnx.export()`
 
 htdemucs's STFT frontend calls `torch.stft(..., return_complex=True)` and
@@ -29,11 +34,18 @@ venv/bin/python export.py   # -> htdemucs_6s.onnx (~235MB, float32)
 venv/bin/python verify.py   # confirms ONNX Runtime output matches PyTorch
 ```
 
-Then copy the model into the app (gitignored -- too large for the repo):
+Then publish it as a release asset and update `DemucsStemSeparator.MODEL_SPEC` (fileName,
+downloadUrl, sha256) to point at the new release:
 
 ```bash
-cp htdemucs_6s.onnx ../../app/src/main/assets/models/htdemucs_6s.onnx
+sha256sum htdemucs_6s.onnx
+gh release create htdemucs-6s-v2 --title "htdemucs_6s ONNX export v2" \
+  --notes "SHA-256: <paste the hash above>" htdemucs_6s.onnx
 ```
+
+(The current release is `htdemucs-6s-v1`; bump the tag each time the export changes so
+already-downloaded copies on devices don't silently go stale -- `ModelProvider` only
+re-downloads when the cached file's checksum no longer matches `MODEL_SPEC`.)
 
 `uv` (https://astral.sh/uv) is used instead of plain `venv`/`pip` because it bundles its own
 Python builds, sidestepping the `python3-venv` apt package / PEP 668 externally-managed-environment
