@@ -23,7 +23,6 @@ import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.statusBars
 import androidx.compose.foundation.layout.windowInsetsPadding
 import androidx.compose.foundation.rememberScrollState
-import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
@@ -246,27 +245,13 @@ private fun AppHeader() {
             .background(HeaderGradient)
             .windowInsetsPadding(WindowInsets.statusBars)
             .padding(horizontal = 24.dp, vertical = 28.dp),
+        contentAlignment = Alignment.Center,
     ) {
-        Row(
-            modifier = Modifier.fillMaxWidth(),
-            horizontalArrangement = Arrangement.SpaceBetween,
-            verticalAlignment = Alignment.CenterVertically,
-        ) {
-            Text(
-                text = stringResource(R.string.app_name),
-                style = MaterialTheme.typography.headlineMedium,
-                color = Color.White,
-            )
-            Box(
-                modifier = Modifier
-                    .size(52.dp)
-                    .clip(CircleShape)
-                    .background(Color.White.copy(alpha = 0.25f)),
-                contentAlignment = Alignment.Center,
-            ) {
-                Icon(Icons.Filled.Piano, contentDescription = null, tint = Color.White)
-            }
-        }
+        Text(
+            text = stringResource(R.string.app_name),
+            style = MaterialTheme.typography.headlineMedium,
+            color = Color.White,
+        )
     }
 }
 
