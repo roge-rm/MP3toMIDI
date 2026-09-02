@@ -3,24 +3,23 @@ package com.rm.mp3tomidi.convert
 import android.content.Context
 import android.media.MediaMetadataRetriever
 import android.net.Uri
+import com.rm.mp3tomidi.convert.stages.DemucsSourceClassifier
+import com.rm.mp3tomidi.convert.stages.DemucsStemSeparator
 import com.rm.mp3tomidi.convert.stages.InstrumentClassifier
-import com.rm.mp3tomidi.convert.stages.NoOpStemSeparator
 import com.rm.mp3tomidi.convert.stages.NoteTranscriber
-import com.rm.mp3tomidi.convert.stages.PlaceholderInstrumentClassifier
 import com.rm.mp3tomidi.convert.stages.PlaceholderNoteTranscriber
 import com.rm.mp3tomidi.convert.stages.Stem
 import com.rm.mp3tomidi.convert.stages.StemSeparator
 
 /**
- * Orchestrates the separate → transcribe → classify stages. Each stage is swappable so the
- * no-op/placeholder implementations here can be replaced with real on-device models
- * (Demucs via ONNX Runtime for separation, Basic Pitch for transcription, a timbre
- * classifier for GM mapping) independently of this wiring.
+ * Orchestrates the separate → transcribe → classify stages. Each stage is swappable; the
+ * transcriber is still a placeholder (one sustained note per stem) pending a real on-device
+ * transcription model (e.g. Basic Pitch) independently of separation/classification.
  */
 class ConversionPipeline(
-    private val separator: StemSeparator = NoOpStemSeparator(),
+    private val separator: StemSeparator = DemucsStemSeparator(),
     private val transcriber: NoteTranscriber = PlaceholderNoteTranscriber(),
-    private val classifier: InstrumentClassifier = PlaceholderInstrumentClassifier(),
+    private val classifier: InstrumentClassifier = DemucsSourceClassifier(),
 ) {
     suspend fun convert(
         context: Context,

@@ -13,3 +13,8 @@
 .externalNativeBuild
 .cxx
 local.properties
+
+# Exported ML models: too large for git, reproducible via tools/demucs_export/.
+/app/src/main/assets/models/
+*.onnx
+/tools/demucs_export/venv/

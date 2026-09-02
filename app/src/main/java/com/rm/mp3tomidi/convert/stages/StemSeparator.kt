@@ -9,11 +9,21 @@ interface StemSeparator {
 }
 
 /**
- * Placeholder used until a real on-device separation model (Demucs, ONNX Runtime) is wired in.
- * Treats the whole mix as a single stem so the rest of the pipeline is exercisable end to end.
+ * Cheap fallback that treats the whole mix as a single silent stem, for exercising the rest of
+ * the pipeline without paying for a real separation model.
  */
 class NoOpStemSeparator : StemSeparator {
     override suspend fun separate(context: Context, inputAudio: Uri, durationUs: Long): List<RawStem> {
-        return listOf(RawStem(label = "mix", durationUs = durationUs))
+        val sampleRate = 44_100
+        val frameCount = (durationUs * sampleRate / 1_000_000L).toInt()
+        return listOf(
+            RawStem(
+                label = "mix",
+                durationUs = durationUs,
+                interleavedPcm = FloatArray(frameCount * 2),
+                sampleRate = sampleRate,
+                channelCount = 2,
+            ),
+        )
     }
 }
