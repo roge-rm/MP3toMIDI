@@ -33,12 +33,12 @@ class ConversionWorker(
 
         return try {
             val pipeline = ConversionPipeline()
-            val stems = pipeline.convert(applicationContext, inputUri) { stage, fraction ->
+            val result = pipeline.convert(applicationContext, inputUri) { stage, fraction ->
                 setProgress(workDataOf(KEY_PROGRESS_STAGE to stage, KEY_PROGRESS_FRACTION to fraction))
                 setForeground(foregroundInfo(stage, (fraction * 100).toInt()))
             }
 
-            val midiBytes = MidiFileWriter.write(stems)
+            val midiBytes = MidiFileWriter.write(result.stems, bpm = result.bpm)
             val written = applicationContext.contentResolver.openOutputStream(outputUri)?.use {
                 it.write(midiBytes)
                 true

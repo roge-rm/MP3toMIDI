@@ -37,4 +37,24 @@ object AudioFilters {
         }
         return crossings.toFloat() / (x.size - 1)
     }
+
+    /**
+     * Half-wave-rectified frame-to-frame RMS difference: a cheap proxy for "how much new energy
+     * arrived" per frame, used as the onset-strength signal by both [DrumOnsetDetector] (peak-pick
+     * it directly) and [TempoDetector] (autocorrelate it to find the dominant periodicity).
+     */
+    fun energyFlux(x: FloatArray, frameSize: Int, hopSize: Int): FloatArray {
+        if (x.size < frameSize) return FloatArray(0)
+        val numFrames = (x.size - frameSize) / hopSize + 1
+        if (numFrames < 2) return FloatArray(0)
+
+        val energies = FloatArray(numFrames)
+        for (f in 0 until numFrames) {
+            energies[f] = rms(x, f * hopSize, f * hopSize + frameSize)
+        }
+
+        val flux = FloatArray(numFrames)
+        for (f in 1 until numFrames) flux[f] = maxOf(0f, energies[f] - energies[f - 1])
+        return flux
+    }
 }

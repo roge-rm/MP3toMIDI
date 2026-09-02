@@ -20,17 +20,9 @@ object DrumOnsetDetector {
         minIntervalMs: Int = 60,
         thresholdMultiplier: Float = 1.5f,
     ): List<Int> {
-        if (mono.size < frameSize) return emptyList()
-        val numFrames = (mono.size - frameSize) / hopSize + 1
+        val flux = AudioFilters.energyFlux(mono, frameSize, hopSize)
+        val numFrames = flux.size
         if (numFrames < 3) return emptyList()
-
-        val energies = FloatArray(numFrames)
-        for (f in 0 until numFrames) {
-            energies[f] = AudioFilters.rms(mono, f * hopSize, f * hopSize + frameSize)
-        }
-
-        val flux = FloatArray(numFrames)
-        for (f in 1 until numFrames) flux[f] = max(0f, energies[f] - energies[f - 1])
 
         val mean = flux.average().toFloat()
         var variance = 0.0

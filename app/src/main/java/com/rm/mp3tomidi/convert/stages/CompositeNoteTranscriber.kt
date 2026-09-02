@@ -12,8 +12,8 @@ class CompositeNoteTranscriber(
     private val pitchedTranscriber: NoteTranscriber = BasicPitchTranscriber(),
     private val drumTranscriber: NoteTranscriber = DrumTranscriber(),
 ) : NoteTranscriber {
-    override suspend fun transcribe(context: Context, stem: RawStem): List<NoteEvent> {
+    override suspend fun transcribe(context: Context, stem: RawStem, bpm: Int): List<NoteEvent> {
         val transcriber = if (stem.label == drumLabel) drumTranscriber else pitchedTranscriber
-        return transcriber.transcribe(context, stem)
+        return transcriber.transcribe(context, stem, bpm)
     }
 }
