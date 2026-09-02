@@ -26,6 +26,17 @@
                 <category android:name="android.intent.category.LAUNCHER" />
             </intent-filter>
         </activity>
+
+        <!--
+          WorkManager's own manifest declares this service with no foregroundServiceType.
+          On API 34+ the OS rejects startForeground() unless the manifest's declared type is a
+          superset of what's requested at runtime (ConversionWorker requests dataSync), so it
+          must be widened here via a merge rather than left to the library default.
+        -->
+        <service
+            android:name="androidx.work.impl.foreground.SystemForegroundService"
+            android:foregroundServiceType="dataSync"
+            tools:node="merge" />
     </application>
 
 </manifest>
