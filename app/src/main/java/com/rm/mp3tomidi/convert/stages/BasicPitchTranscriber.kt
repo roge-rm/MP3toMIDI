@@ -25,7 +25,7 @@ import kotlin.math.roundToLong
  */
 class BasicPitchTranscriber : NoteTranscriber {
 
-    override suspend fun transcribe(context: Context, stem: RawStem): List<NoteEvent> {
+    override suspend fun transcribe(context: Context, stem: RawStem, bpm: Int): List<NoteEvent> {
         val monoAudio = loadAsMono22050(stem)
         if (monoAudio.isEmpty()) return emptyList()
 
@@ -56,8 +56,8 @@ class BasicPitchTranscriber : NoteTranscriber {
             val startSeconds = times.getOrElse(note.startFrame) { times.lastOrNull() ?: 0.0 }
             val endSeconds = times.getOrElse(min(note.endFrame, times.size - 1)) { times.lastOrNull() ?: 0.0 }
             NoteEvent(
-                startTick = secondsToTicks(startSeconds),
-                endTick = secondsToTicks(endSeconds),
+                startTick = secondsToTicks(startSeconds, bpm),
+                endTick = secondsToTicks(endSeconds, bpm),
                 pitch = note.pitch,
                 velocity = (note.amplitude * 127f).roundToInt().coerceIn(1, 127),
             )
@@ -116,8 +116,8 @@ class BasicPitchTranscriber : NoteTranscriber {
         return Array(min(totalFrames, flat.size)) { flat[it] }
     }
 
-    private fun secondsToTicks(seconds: Double): Long {
-        val ticksPerSecond = MidiConstants.TICKS_PER_QUARTER_NOTE.toDouble() * MidiConstants.DEFAULT_BPM / 60.0
+    private fun secondsToTicks(seconds: Double, bpm: Int): Long {
+        val ticksPerSecond = MidiConstants.TICKS_PER_QUARTER_NOTE.toDouble() * bpm / 60.0
         return (seconds * ticksPerSecond).roundToLong()
     }
 

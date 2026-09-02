@@ -16,7 +16,7 @@ import kotlin.math.roundToLong
  */
 class DrumTranscriber : NoteTranscriber {
 
-    override suspend fun transcribe(context: Context, stem: RawStem): List<NoteEvent> {
+    override suspend fun transcribe(context: Context, stem: RawStem, bpm: Int): List<NoteEvent> {
         val mono = loadMono(stem)
         if (mono.isEmpty()) return emptyList()
 
@@ -24,12 +24,12 @@ class DrumTranscriber : NoteTranscriber {
         if (onsets.isEmpty()) return emptyList()
 
         val peakAmplitude = (mono.maxOf { abs(it) }).coerceAtLeast(MIN_AMPLITUDE)
-        val durationTicks = samplesToTicks((DURATION_SECONDS * stem.sampleRate).toInt(), stem.sampleRate)
+        val durationTicks = samplesToTicks((DURATION_SECONDS * stem.sampleRate).toInt(), stem.sampleRate, bpm)
             .coerceAtLeast(1)
 
         return onsets.map { onsetSample ->
             val voice = DrumHitClassifier.classify(mono, onsetSample, stem.sampleRate)
-            val startTick = samplesToTicks(onsetSample, stem.sampleRate)
+            val startTick = samplesToTicks(onsetSample, stem.sampleRate, bpm)
             val localPeak = localPeakAmplitude(mono, onsetSample, stem.sampleRate)
             val velocity = (127f * (localPeak / peakAmplitude)).roundToInt().coerceIn(MIN_VELOCITY, 127)
             NoteEvent(
@@ -53,8 +53,8 @@ class DrumTranscriber : NoteTranscriber {
         return peak
     }
 
-    private fun samplesToTicks(samples: Int, sampleRate: Int): Long {
-        val ticksPerSecond = MidiConstants.TICKS_PER_QUARTER_NOTE.toDouble() * MidiConstants.DEFAULT_BPM / 60.0
+    private fun samplesToTicks(samples: Int, sampleRate: Int, bpm: Int): Long {
+        val ticksPerSecond = MidiConstants.TICKS_PER_QUARTER_NOTE.toDouble() * bpm / 60.0
         return (samples.toDouble() / sampleRate * ticksPerSecond).roundToLong()
     }
 
