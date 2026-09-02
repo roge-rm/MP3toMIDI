@@ -14,6 +14,7 @@ import com.rm.mp3tomidi.convert.stages.StemSeparator
 import com.rm.mp3tomidi.convert.stages.TempoDetector
 import com.rm.mp3tomidi.convert.stages.TimbreClassifier
 import com.rm.mp3tomidi.util.PcmUtils
+import kotlinx.coroutines.CancellationException
 
 /** Result of a full conversion: the transcribed/classified stems plus the tempo detected for them. */
 data class ConversionResult(val stems: List<Stem>, val bpm: Int)
@@ -27,18 +28,21 @@ class ConversionPipeline(
     suspend fun convert(
         context: Context,
         inputAudio: Uri,
+        isCancelled: () -> Boolean,
         onProgress: suspend (stage: String, fraction: Float) -> Unit,
     ): ConversionResult {
         onProgress("Decoding audio", 0.05f)
         val durationUs = readDurationUs(context, inputAudio)
 
         onProgress("Separating stems", 0.2f)
-        val rawStems = separator.separate(context, inputAudio, durationUs, onProgress)
+        val rawStems = separator.separate(context, inputAudio, durationUs, isCancelled, onProgress)
         try {
+            if (isCancelled()) throw CancellationException("Conversion cancelled")
             onProgress("Detecting tempo", 0.5f)
             val bpm = detectBpm(rawStems)
 
             val notesByStem = rawStems.mapIndexed { index, raw ->
+                if (isCancelled()) throw CancellationException("Conversion cancelled")
                 onProgress(
                     "Transcribing notes (${index + 1}/${rawStems.size}: ${raw.label})",
                     lerp(0.5f, 0.8f, index.toFloat() / rawStems.size),
@@ -47,6 +51,7 @@ class ConversionPipeline(
             }
 
             val stems = notesByStem.mapIndexed { index, (raw, notes) ->
+                if (isCancelled()) throw CancellationException("Conversion cancelled")
                 onProgress(
                     "Mapping instruments to GM programs (${index + 1}/${notesByStem.size}: ${raw.label})",
                     lerp(0.8f, 0.95f, index.toFloat() / notesByStem.size),

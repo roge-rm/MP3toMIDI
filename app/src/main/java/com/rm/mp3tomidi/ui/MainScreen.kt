@@ -26,6 +26,7 @@ import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.Cancel
 import androidx.compose.material.icons.filled.CheckCircle
 import androidx.compose.material.icons.filled.Error
 import androidx.compose.material.icons.filled.FileDownload
@@ -33,6 +34,7 @@ import androidx.compose.material.icons.filled.LibraryMusic
 import androidx.compose.material.icons.filled.Pause
 import androidx.compose.material.icons.filled.PlayArrow
 import androidx.compose.material.icons.filled.Piano
+import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.Icon
@@ -43,6 +45,7 @@ import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.OutlinedTextFieldDefaults
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
+import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
@@ -71,6 +74,7 @@ import com.rm.mp3tomidi.ui.theme.BrandNavy
 import com.rm.mp3tomidi.ui.theme.BrandPink
 import com.rm.mp3tomidi.ui.theme.BrandTeal
 import com.rm.mp3tomidi.ui.theme.BrandYellow
+import com.rm.mp3tomidi.ui.theme.DangerRed
 import com.rm.mp3tomidi.ui.theme.OutlineLavender
 import com.rm.mp3tomidi.util.displayNameOf
 
@@ -106,6 +110,7 @@ fun MainScreen(viewModel: MainViewModel) {
 
     var outputFileName by rememberSaveable { mutableStateOf("output.mid") }
     val inputFileName = remember(inputUri) { inputUri?.let { displayNameOf(context, it) } }
+    var showCancelConfirmation by remember { mutableStateOf(false) }
 
     // The gradient header sits edge-to-edge behind the status bar (see enableEdgeToEdge in
     // MainActivity), so its icons need to stay light/white rather than following the system's
@@ -206,22 +211,52 @@ fun MainScreen(viewModel: MainViewModel) {
                     )
                 }
 
-                GradientButton(
-                    text = stringResource(R.string.convert),
-                    icon = Icons.Filled.Piano,
-                    enabled = inputUri != null && outputUri != null && !isRunning,
-                    onClick = {
-                        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU &&
-                            ContextCompat.checkSelfPermission(
-                                context,
-                                Manifest.permission.POST_NOTIFICATIONS,
-                            ) != PackageManager.PERMISSION_GRANTED
-                        ) {
-                            notificationPermissionLauncher.launch(Manifest.permission.POST_NOTIFICATIONS)
-                        }
-                        viewModel.startConversion()
-                    },
-                )
+                if (isRunning) {
+                    SolidActionButton(
+                        text = stringResource(R.string.cancel_conversion),
+                        icon = Icons.Filled.Cancel,
+                        color = DangerRed,
+                        onClick = { showCancelConfirmation = true },
+                    )
+                } else {
+                    GradientButton(
+                        text = stringResource(R.string.convert),
+                        icon = Icons.Filled.Piano,
+                        enabled = inputUri != null && outputUri != null,
+                        onClick = {
+                            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU &&
+                                ContextCompat.checkSelfPermission(
+                                    context,
+                                    Manifest.permission.POST_NOTIFICATIONS,
+                                ) != PackageManager.PERMISSION_GRANTED
+                            ) {
+                                notificationPermissionLauncher.launch(Manifest.permission.POST_NOTIFICATIONS)
+                            }
+                            viewModel.startConversion()
+                        },
+                    )
+                }
+
+                if (showCancelConfirmation) {
+                    AlertDialog(
+                        onDismissRequest = { showCancelConfirmation = false },
+                        title = { Text(stringResource(R.string.cancel_conversion_title)) },
+                        text = { Text(stringResource(R.string.cancel_conversion_message)) },
+                        confirmButton = {
+                            TextButton(onClick = {
+                                showCancelConfirmation = false
+                                viewModel.cancelConversion()
+                            }) {
+                                Text(stringResource(R.string.cancel_conversion), color = DangerRed)
+                            }
+                        },
+                        dismissButton = {
+                            TextButton(onClick = { showCancelConfirmation = false }) {
+                                Text(stringResource(R.string.keep_converting))
+                            }
+                        },
+                    )
+                }
 
                 val progress = workInfo?.progress
                 val stage = progress?.getString(ConversionWorker.KEY_PROGRESS_STAGE)
@@ -350,6 +385,34 @@ private fun GradientButton(
             .clip(MaterialTheme.shapes.medium)
             .then(background)
             .clickable(enabled = enabled, onClick = onClick)
+            .padding(vertical = 16.dp),
+        contentAlignment = Alignment.Center,
+    ) {
+        Row(verticalAlignment = Alignment.CenterVertically) {
+            Icon(icon, contentDescription = null, tint = Color.White)
+            Text(
+                text = text,
+                color = Color.White,
+                style = MaterialTheme.typography.titleMedium,
+                modifier = Modifier.padding(start = 10.dp),
+            )
+        }
+    }
+}
+
+@Composable
+private fun SolidActionButton(
+    text: String,
+    icon: androidx.compose.ui.graphics.vector.ImageVector,
+    color: Color,
+    onClick: () -> Unit,
+) {
+    Box(
+        modifier = Modifier
+            .fillMaxWidth()
+            .clip(MaterialTheme.shapes.medium)
+            .background(color)
+            .clickable(onClick = onClick)
             .padding(vertical = 16.dp),
         contentAlignment = Alignment.Center,
     ) {

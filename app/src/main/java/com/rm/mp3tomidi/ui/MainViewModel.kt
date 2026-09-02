@@ -58,6 +58,18 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
         workManager.enqueue(request)
     }
 
+    /**
+     * This alone doesn't stop anything running or delete temp files -- it just flips
+     * [androidx.work.ListenableWorker.isStopped] to true. `ConversionWorker` threads that flag
+     * down through `ConversionPipeline`/`DemucsStemSeparator`/`ModelProvider` as an explicit
+     * `isCancelled` check polled between chunks; when one of them sees it, it throws and its own
+     * try/catch cleans up its temp files. Plain coroutine cancellation was tried first and verified
+     * on-device to *not* reliably stop a running conversion -- see DemucsStemSeparator's doc.
+     */
+    fun cancelConversion() {
+        _workId.value?.let { workManager.cancelWorkById(it) }
+    }
+
     override fun onCleared() {
         player.release()
     }
