@@ -2,6 +2,7 @@ package com.rm.mp3tomidi.convert.stages
 
 import android.content.Context
 import android.net.Uri
+import java.io.File
 
 /** Splits a decoded audio source into its constituent instrument stems. */
 interface StemSeparator {
@@ -25,12 +26,12 @@ class NoOpStemSeparator : StemSeparator {
         onProgress: suspend (stage: String, fraction: Float) -> Unit,
     ): List<RawStem> {
         val sampleRate = 44_100
-        val frameCount = (durationUs * sampleRate / 1_000_000L).toInt()
+        val silentFile = File.createTempFile("mix", ".pcm", context.cacheDir).apply { deleteOnExit() }
         return listOf(
             RawStem(
                 label = "mix",
                 durationUs = durationUs,
-                interleavedPcm = FloatArray(frameCount * 2),
+                pcmFile = silentFile,
                 sampleRate = sampleRate,
                 channelCount = 2,
             ),

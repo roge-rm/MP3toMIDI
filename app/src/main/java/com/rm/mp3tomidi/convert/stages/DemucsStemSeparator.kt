@@ -9,6 +9,11 @@ import com.rm.mp3tomidi.util.AudioDecoder
 import com.rm.mp3tomidi.util.DecodedAudio
 import com.rm.mp3tomidi.util.ModelProvider
 import com.rm.mp3tomidi.util.ModelSpec
+import java.io.BufferedOutputStream
+import java.io.File
+import java.io.OutputStream
+import java.nio.ByteBuffer
+import java.nio.ByteOrder
 import java.nio.FloatBuffer
 
 /**
@@ -19,6 +24,12 @@ import java.nio.FloatBuffer
  *
  * The model itself (~235MB) isn't bundled in the app; it's downloaded once via [ModelProvider]
  * and cached in app-private storage, so every conversion after the first is fully offline.
+ *
+ * Separated audio is streamed to disk via [StreamingOverlapAdder] rather than accumulated in
+ * memory for the whole song across all 6 stems at once (that's what OOMs on a several-minute
+ * song). The decoded *input* mixture is still one in-memory array for the whole song, which
+ * remains a scaling limit for very long inputs; streaming that too would need chunked decode
+ * with random-access re-seeking instead of AudioDecoder's single-pass whole-file decode.
  */
 class DemucsStemSeparator : StemSeparator {
 
@@ -43,16 +54,35 @@ class DemucsStemSeparator : StemSeparator {
         )
 
         val env = OrtEnvironment.getEnvironment()
-        val session = env.createSession(modelFile.absolutePath, OrtSession.SessionOptions())
+        val sessionOptions = OrtSession.SessionOptions().apply {
+            // With ORT's default settings this model's peak RSS is ~4.9GB (measured directly,
+            // both on-device and via onnxruntime's Python bindings on the same .onnx file) and
+            // reaches that within the first couple of chunks -- not a leak, just a huge
+            // high-water mark that the default memory-pattern planner and arena allocator both
+            // retain for the session's lifetime. Disabling both drops it to ~750MB with no
+            // accuracy change (same graph, same weights): isolated each setting independently
+            // and confirmed empirically before picking this combination, since arena alone
+            // made it *worse* in one measurement.
+            setMemoryPatternOptimization(false)
+            setCPUArenaAllocator(false)
+        }
+        val session = env.createSession(modelFile.absolutePath, sessionOptions)
 
-        val accum = Array(SOURCES.size) { FloatArray(audio.frameCount * CHANNELS) }
-        val sumWeight = FloatArray(audio.frameCount)
+        val pcmFiles = SOURCES.map { File.createTempFile("stem_$it", ".pcm", context.cacheDir) }
+        val outputs = pcmFiles.map { BufferedOutputStream(it.outputStream()) }
+        val adder = StreamingOverlapAdder(SOURCES.size, CHANNELS, SEGMENT_LENGTH)
 
         try {
             val placements = scheduler.chunkPlacements()
             placements.forEachIndexed { index, placement ->
                 val chunkOutput = runChunk(session, env, audio, placement)
-                accumulate(accum, sumWeight, chunkOutput, placement, scheduler.weight)
+                adder.addChunk(placement, scheduler.weight, chunkOutput)
+
+                val nextOffset = if (index + 1 < placements.size) placements[index + 1].offset else audio.frameCount
+                adder.flushUpTo(nextOffset)?.let { flushed ->
+                    flushed.forEachIndexed { sourceIndex, samples -> writePcm(outputs[sourceIndex], samples) }
+                }
+
                 onProgress(
                     "Separating stems (${index + 1}/${placements.size})",
                     lerp(SEPARATE_RANGE_START, SEPARATE_RANGE_END, (index + 1).toFloat() / placements.size),
@@ -60,19 +90,25 @@ class DemucsStemSeparator : StemSeparator {
             }
         } finally {
             session.close()
+            sessionOptions.close()
+            outputs.forEach { it.close() }
         }
-
-        normalize(accum, sumWeight)
 
         return SOURCES.mapIndexed { index, label ->
             RawStem(
                 label = label,
                 durationUs = durationUs,
-                interleavedPcm = accum[index],
+                pcmFile = pcmFiles[index],
                 sampleRate = SAMPLE_RATE,
                 channelCount = CHANNELS,
             )
         }
+    }
+
+    private fun writePcm(output: OutputStream, samples: FloatArray) {
+        val buffer = ByteBuffer.allocate(samples.size * 4).order(ByteOrder.LITTLE_ENDIAN)
+        buffer.asFloatBuffer().put(samples)
+        output.write(buffer.array())
     }
 
     private fun lerp(start: Float, end: Float, fraction: Float): Float = start + (end - start) * fraction
@@ -104,41 +140,6 @@ class DemucsStemSeparator : StemSeparator {
         }
     }
 
-    private fun accumulate(
-        accum: Array<FloatArray>,
-        sumWeight: FloatArray,
-        chunkOutput: FloatArray,
-        placement: ChunkPlacement,
-        weight: FloatArray,
-    ) {
-        for (sourceIndex in SOURCES.indices) {
-            val sourceBase = sourceIndex * CHANNELS * SEGMENT_LENGTH
-            for (i in 0 until placement.validLength) {
-                val w = weight[placement.trimStart + i]
-                val t = placement.offset + i
-                for (ch in 0 until CHANNELS) {
-                    val chunkIdx = sourceBase + ch * SEGMENT_LENGTH + placement.trimStart + i
-                    accum[sourceIndex][t * CHANNELS + ch] += w * chunkOutput[chunkIdx]
-                }
-            }
-        }
-        for (i in 0 until placement.validLength) {
-            sumWeight[placement.offset + i] += weight[placement.trimStart + i]
-        }
-    }
-
-    private fun normalize(accum: Array<FloatArray>, sumWeight: FloatArray) {
-        val frameCount = sumWeight.size
-        for (source in accum) {
-            for (frame in 0 until frameCount) {
-                val w = sumWeight[frame].coerceAtLeast(MIN_WEIGHT)
-                for (ch in 0 until CHANNELS) {
-                    source[frame * CHANNELS + ch] /= w
-                }
-            }
-        }
-    }
-
     companion object {
         const val SAMPLE_RATE = 44_100
         const val CHANNELS = 2
@@ -146,7 +147,6 @@ class DemucsStemSeparator : StemSeparator {
         // htdemucs_6s's trained segment length: round(44100 * 39/5 seconds).
         const val SEGMENT_LENGTH = 343_980
         const val OVERLAP = 0.25f
-        private const val MIN_WEIGHT = 1e-8f
 
         private const val INPUT_NAME = "mixture"
         private val INPUT_SHAPE = longArrayOf(1, CHANNELS.toLong(), SEGMENT_LENGTH.toLong())
