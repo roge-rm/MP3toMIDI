@@ -34,10 +34,6 @@ android {
     buildFeatures {
         compose = true
     }
-
-    androidResources {
-        noCompress += "onnx"
-    }
 }
 
 dependencies {

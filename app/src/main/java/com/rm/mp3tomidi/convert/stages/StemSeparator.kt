@@ -5,7 +5,12 @@ import android.net.Uri
 
 /** Splits a decoded audio source into its constituent instrument stems. */
 interface StemSeparator {
-    suspend fun separate(context: Context, inputAudio: Uri, durationUs: Long): List<RawStem>
+    suspend fun separate(
+        context: Context,
+        inputAudio: Uri,
+        durationUs: Long,
+        onProgress: suspend (stage: String, fraction: Float) -> Unit,
+    ): List<RawStem>
 }
 
 /**
@@ -13,7 +18,12 @@ interface StemSeparator {
  * the pipeline without paying for a real separation model.
  */
 class NoOpStemSeparator : StemSeparator {
-    override suspend fun separate(context: Context, inputAudio: Uri, durationUs: Long): List<RawStem> {
+    override suspend fun separate(
+        context: Context,
+        inputAudio: Uri,
+        durationUs: Long,
+        onProgress: suspend (stage: String, fraction: Float) -> Unit,
+    ): List<RawStem> {
         val sampleRate = 44_100
         val frameCount = (durationUs * sampleRate / 1_000_000L).toInt()
         return listOf(

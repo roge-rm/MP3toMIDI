@@ -30,7 +30,7 @@ class ConversionPipeline(
         val durationUs = readDurationUs(context, inputAudio)
 
         onProgress("Separating stems", 0.2f)
-        val rawStems = separator.separate(context, inputAudio, durationUs)
+        val rawStems = separator.separate(context, inputAudio, durationUs, onProgress)
 
         onProgress("Transcribing notes", 0.5f)
         val notesByStem = rawStems.map { raw -> raw to transcriber.transcribe(raw) }

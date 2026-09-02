@@ -7,6 +7,8 @@ import android.content.Context
 import android.net.Uri
 import com.rm.mp3tomidi.util.AudioDecoder
 import com.rm.mp3tomidi.util.DecodedAudio
+import com.rm.mp3tomidi.util.ModelProvider
+import com.rm.mp3tomidi.util.ModelSpec
 import java.nio.FloatBuffer
 
 /**
@@ -14,12 +16,25 @@ import java.nio.FloatBuffer
  * (see tools/demucs_export/) in overlapping [SEGMENT_LENGTH]-sample windows, cross-faded back
  * together per [OverlapAddScheduler] -- the same scheme demucs.apply.apply_model uses, so
  * segment boundaries don't produce audible seams.
+ *
+ * The model itself (~235MB) isn't bundled in the app; it's downloaded once via [ModelProvider]
+ * and cached in app-private storage, so every conversion after the first is fully offline.
  */
-class DemucsStemSeparator(
-    private val assetPath: String = "models/htdemucs_6s.onnx",
-) : StemSeparator {
+class DemucsStemSeparator : StemSeparator {
 
-    override suspend fun separate(context: Context, inputAudio: Uri, durationUs: Long): List<RawStem> {
+    override suspend fun separate(
+        context: Context,
+        inputAudio: Uri,
+        durationUs: Long,
+        onProgress: suspend (stage: String, fraction: Float) -> Unit,
+    ): List<RawStem> {
+        val modelFile = ModelProvider.ensureAvailable(context, MODEL_SPEC) { fraction ->
+            onProgress(
+                "Downloading separation model (${(fraction * 100).toInt()}%)",
+                lerp(DOWNLOAD_RANGE_START, DOWNLOAD_RANGE_END, fraction),
+            )
+        }
+
         val audio = AudioDecoder.decode(context, inputAudio, SAMPLE_RATE, CHANNELS)
         val scheduler = OverlapAddScheduler(
             totalLength = audio.frameCount,
@@ -28,16 +43,20 @@ class DemucsStemSeparator(
         )
 
         val env = OrtEnvironment.getEnvironment()
-        val modelBytes = context.assets.open(assetPath).use { it.readBytes() }
-        val session = env.createSession(modelBytes, OrtSession.SessionOptions())
+        val session = env.createSession(modelFile.absolutePath, OrtSession.SessionOptions())
 
         val accum = Array(SOURCES.size) { FloatArray(audio.frameCount * CHANNELS) }
         val sumWeight = FloatArray(audio.frameCount)
 
         try {
-            for (placement in scheduler.chunkPlacements()) {
+            val placements = scheduler.chunkPlacements()
+            placements.forEachIndexed { index, placement ->
                 val chunkOutput = runChunk(session, env, audio, placement)
                 accumulate(accum, sumWeight, chunkOutput, placement, scheduler.weight)
+                onProgress(
+                    "Separating stems (${index + 1}/${placements.size})",
+                    lerp(SEPARATE_RANGE_START, SEPARATE_RANGE_END, (index + 1).toFloat() / placements.size),
+                )
             }
         } finally {
             session.close()
@@ -55,6 +74,8 @@ class DemucsStemSeparator(
             )
         }
     }
+
+    private fun lerp(start: Float, end: Float, fraction: Float): Float = start + (end - start) * fraction
 
     /** Runs one model-input window; returns the flat (source, channel, sample) output. */
     private fun runChunk(
@@ -131,5 +152,19 @@ class DemucsStemSeparator(
         private val INPUT_SHAPE = longArrayOf(1, CHANNELS.toLong(), SEGMENT_LENGTH.toLong())
 
         val SOURCES = listOf("drums", "bass", "other", "vocals", "guitar", "piano")
+
+        // These two ranges fill the (0.2, 0.5) progress window ConversionPipeline's
+        // "Separating stems" / "Transcribing notes" checkpoints bracket -- see
+        // ConversionPipeline.kt.
+        private const val DOWNLOAD_RANGE_START = 0.2f
+        private const val DOWNLOAD_RANGE_END = 0.35f
+        private const val SEPARATE_RANGE_START = 0.35f
+        private const val SEPARATE_RANGE_END = 0.5f
+
+        val MODEL_SPEC = ModelSpec(
+            fileName = "htdemucs_6s.onnx",
+            downloadUrl = "https://github.com/roge-rm/MP3toMIDI/releases/download/htdemucs-6s-v1/htdemucs_6s.onnx",
+            sha256 = "5e96a660f3b12bdcde51505736fb3e958c7e12d764c0fb84e0f5a2e526560464",
+        )
     }
 }

@@ -14,7 +14,7 @@
 .cxx
 local.properties
 
-# Exported ML models: too large for git, reproducible via tools/demucs_export/.
-/app/src/main/assets/models/
+# Exported ML models: too large for git, published as GitHub Release assets instead
+# (see tools/demucs_export/README.md), downloaded on-device on first use.
 *.onnx
 /tools/demucs_export/venv/
