@@ -31,15 +31,20 @@ class ConversionPipeline(
 
         onProgress("Separating stems", 0.2f)
         val rawStems = separator.separate(context, inputAudio, durationUs, onProgress)
+        try {
+            onProgress("Transcribing notes", 0.5f)
+            val notesByStem = rawStems.map { raw -> raw to transcriber.transcribe(raw) }
 
-        onProgress("Transcribing notes", 0.5f)
-        val notesByStem = rawStems.map { raw -> raw to transcriber.transcribe(raw) }
+            onProgress("Mapping instruments to GM programs", 0.8f)
+            val stems = notesByStem.map { (raw, notes) -> classifier.classify(raw, notes) }
 
-        onProgress("Mapping instruments to GM programs", 0.8f)
-        val stems = notesByStem.map { (raw, notes) -> classifier.classify(raw, notes) }
-
-        onProgress("Writing MIDI file", 0.95f)
-        return stems
+            onProgress("Writing MIDI file", 0.95f)
+            return stems
+        } finally {
+            // Each stem's separated audio is a temp file (see RawStem); nothing downstream of
+            // classification needs it once we're here.
+            rawStems.forEach { it.pcmFile.delete() }
+        }
     }
 
     private fun readDurationUs(context: Context, uri: Uri): Long {
