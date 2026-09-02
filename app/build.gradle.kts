@@ -1,7 +1,19 @@
+import java.util.Properties
+
 plugins {
     alias(libs.plugins.android.application)
     alias(libs.plugins.kotlin.compose)
 }
+
+// Release signing credentials live in local.properties (gitignored, never committed) rather than
+// here -- same convention as the sibling ScaleInKey project. Falls back to unsigned release
+// builds when absent, e.g. on a fresh checkout, so `assembleRelease` doesn't hard-fail for anyone
+// without access to the real keystore.
+val localProperties = Properties().apply {
+    val file = rootProject.file("local.properties")
+    if (file.exists()) file.inputStream().use { load(it) }
+}
+val releaseStoreFile = localProperties.getProperty("mp3tomidi.release.storeFile")
 
 android {
     namespace = "com.rm.mp3tomidi"
@@ -14,15 +26,29 @@ android {
         minSdk = 27
         targetSdk = 37
         versionCode = 1
-        versionName = "1.0"
+        versionName = "0.1.0"
 
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
+    }
+
+    signingConfigs {
+        if (releaseStoreFile != null) {
+            create("release") {
+                storeFile = file(releaseStoreFile)
+                storePassword = localProperties.getProperty("mp3tomidi.release.storePassword")
+                keyAlias = localProperties.getProperty("mp3tomidi.release.keyAlias")
+                keyPassword = localProperties.getProperty("mp3tomidi.release.keyPassword")
+            }
+        }
     }
 
     buildTypes {
         release {
             optimization {
                 enable = false
+            }
+            if (releaseStoreFile != null) {
+                signingConfig = signingConfigs.getByName("release")
             }
         }
     }
