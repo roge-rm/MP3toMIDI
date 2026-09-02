@@ -1,8 +1,20 @@
 package com.rm.mp3tomidi.util
 
+import java.io.File
+import java.nio.ByteBuffer
+import java.nio.ByteOrder
+
 /** Shared interleaved-PCM remixing/resampling, used both when decoding input audio and when a
  * separated stem (already PCM) needs conforming to a different model's expected format. */
 object PcmUtils {
+
+    /** Reads a raw interleaved 32-bit float PCM file, little-endian (see DemucsStemSeparator). */
+    fun readInterleavedPcm(file: File): FloatArray {
+        val buffer = ByteBuffer.wrap(file.readBytes()).order(ByteOrder.LITTLE_ENDIAN).asFloatBuffer()
+        val out = FloatArray(buffer.remaining())
+        buffer.get(out)
+        return out
+    }
 
     fun remixChannels(pcm: FloatArray, sourceChannels: Int, targetChannels: Int): FloatArray {
         if (sourceChannels == targetChannels) return pcm

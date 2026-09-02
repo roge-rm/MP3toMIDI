@@ -10,7 +10,7 @@ import android.content.Context
 class CompositeNoteTranscriber(
     private val drumLabel: String = "drums",
     private val pitchedTranscriber: NoteTranscriber = BasicPitchTranscriber(),
-    private val drumTranscriber: NoteTranscriber = PlaceholderNoteTranscriber(),
+    private val drumTranscriber: NoteTranscriber = DrumTranscriber(),
 ) : NoteTranscriber {
     override suspend fun transcribe(context: Context, stem: RawStem): List<NoteEvent> {
         val transcriber = if (stem.label == drumLabel) drumTranscriber else pitchedTranscriber
