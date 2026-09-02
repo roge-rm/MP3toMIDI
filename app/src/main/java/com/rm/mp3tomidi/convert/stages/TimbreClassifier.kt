@@ -13,9 +13,14 @@ import java.nio.FloatBuffer
  * Runs each stem's actual audio through YAMNet (Google's AudioSet classifier, see
  * tools/yamnet_export/) and maps its highest-confidence instrument class to a GM program via
  * [YamnetGmMapping], instead of [DemucsSourceClassifier]'s fixed one-program-per-Demucs-label
- * lookup. Falls back to that fixed lookup when nothing clears [CONFIDENCE_THRESHOLD] -- YAMNet's
- * output is heavily diluted by generic "Music"/"Silence" classes on any real stem (see the
- * threshold's derivation below), so a low-confidence result is the common case, not an edge case.
+ * lookup. YAMNet's output is heavily diluted by generic "Music"/"Silence" classes on any real
+ * stem (see [CONFIDENCE_THRESHOLD]'s derivation below), so a low-confidence result is the common
+ * case, not an edge case -- when that happens, or when YAMNet's answer is just the generic
+ * "Synthesizer" class, [NoteEnvelopeClassifier] gets a shot at inferring a more specific program
+ * from the shape of the stem's already-transcribed notes before finally falling back to
+ * [DemucsSourceClassifier]'s fixed lookup. Skipped for the vocals stem specifically -- a voice is
+ * never a synthesizer, so its low-confidence fallback should stay the fixed voice-shaped default
+ * rather than being pushed toward a generic synth lead.
  *
  * The drums stem skips inference entirely: Demucs's own label is already ground truth there
  * (see [DemucsSourceClassifier]), and running a classifier to confirm what's already known would
@@ -25,12 +30,12 @@ class TimbreClassifier(
     private val fallback: InstrumentClassifier = DemucsSourceClassifier(),
 ) : InstrumentClassifier {
 
-    override suspend fun classify(context: Context, stem: RawStem, notes: List<NoteEvent>): Stem {
-        if (stem.label == "drums") return fallback.classify(context, stem, notes)
+    override suspend fun classify(context: Context, stem: RawStem, notes: List<NoteEvent>, bpm: Int): Stem {
+        if (stem.label == "drums") return fallback.classify(context, stem, notes, bpm)
 
         val modelFile = ModelProvider.ensureAvailable(context, MODEL_SPEC) {}
         val waveform = loadAsMono16k(stem)
-        if (waveform.isEmpty()) return fallback.classify(context, stem, notes)
+        if (waveform.isEmpty()) return fallback.classify(context, stem, notes, bpm)
 
         val env = OrtEnvironment.getEnvironment()
         val session = env.createSession(modelFile.absolutePath, OrtSession.SessionOptions())
@@ -41,9 +46,21 @@ class TimbreClassifier(
         }
 
         val match = YamnetGmMapping.pickBestMatch(meanScores, CONFIDENCE_THRESHOLD)
-            ?: return fallback.classify(context, stem, notes)
+        if (match != null && !match.isGenericSynth) {
+            return Stem(label = stem.label, gmProgram = match.gmProgram, isDrumKit = match.isDrumKit, notes = notes)
+        }
 
-        return Stem(label = stem.label, gmProgram = match.gmProgram, isDrumKit = match.isDrumKit, notes = notes)
+        // Envelope-based synth-role inference doesn't make sense for vocals -- a voice is never a
+        // synthesizer, so a low-confidence vocals stem should keep DemucsSourceClassifier's
+        // voice-shaped default (Lead Voice) rather than being pushed toward a generic synth lead.
+        if (stem.label != "vocals") {
+            val role = NoteEnvelopeClassifier.classify(notes, bpm)
+            if (role != null) {
+                return Stem(label = stem.label, gmProgram = role.gmProgram, isDrumKit = false, notes = notes)
+            }
+        }
+
+        return fallback.classify(context, stem, notes, bpm)
     }
 
     private fun loadAsMono16k(stem: RawStem): FloatArray {

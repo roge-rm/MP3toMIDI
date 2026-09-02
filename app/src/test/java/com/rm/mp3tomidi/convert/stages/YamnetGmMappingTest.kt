@@ -73,4 +73,24 @@ class YamnetGmMappingTest {
 
         assertEquals(33, match?.gmProgram)
     }
+
+    @Test
+    fun `the generic synthesizer class is flagged for envelope-based refinement`() {
+        val scores = FloatArray(521)
+        scores[153] = 0.5f // Synthesizer
+
+        val match = YamnetGmMapping.pickBestMatch(scores, threshold)
+
+        assertEquals(true, match?.isGenericSynth)
+    }
+
+    @Test
+    fun `a specific instrument class is not flagged as generic synth`() {
+        val scores = FloatArray(521)
+        scores[137] = 0.5f // Bass guitar
+
+        val match = YamnetGmMapping.pickBestMatch(scores, threshold)
+
+        assertEquals(false, match?.isGenericSynth)
+    }
 }
