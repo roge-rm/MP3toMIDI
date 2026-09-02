@@ -1,0 +1,11 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1024" height="1024" viewBox="0 0 240 240" role="img" aria-label="MP3toMIDI app icon" xmlns:c2pa="http://c2pa.org/manifest">
+  <rect x="54" y="60" width="24" height="44" rx="12" fill="#00E5C7"></rect>
+  <rect x="90" y="48" width="24" height="56" rx="12" fill="#00E5C7"></rect>
+  <rect x="126" y="60" width="24" height="44" rx="12" fill="#00E5C7"></rect>
+  <rect x="162" y="48" width="24" height="56" rx="12" fill="#00E5C7"></rect>
+  <polygon points="34,116 206,116 148,160 92,160" fill="#FFC93C"></polygon>
+  <rect x="92" y="160" width="56" height="14" fill="#FFC93C"></rect>
+  <rect x="63" y="182" width="30" height="20" rx="6" fill="#FF4D9D"></rect>
+  <rect x="105" y="182" width="30" height="20" rx="6" fill="#FF4D9D"></rect>
+  <rect x="147" y="182" width="30" height="20" rx="6" fill="#FF4D9D"></rect>
+</svg>
