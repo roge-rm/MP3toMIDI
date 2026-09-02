@@ -1,21 +1,47 @@
 package com.rm.mp3tomidi.ui
 
 import android.Manifest
+import android.app.Activity
 import android.content.Intent
 import android.content.pm.PackageManager
 import android.os.Build
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
+import androidx.compose.foundation.background
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.ColumnScope
+import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.WindowInsets
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.navigationBars
 import androidx.compose.foundation.layout.padding
-import androidx.compose.material3.Button
-import androidx.compose.material3.HorizontalDivider
+import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.statusBars
+import androidx.compose.foundation.layout.windowInsetsPadding
+import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.shape.CircleShape
+import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.foundation.verticalScroll
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.CheckCircle
+import androidx.compose.material.icons.filled.Error
+import androidx.compose.material.icons.filled.FileDownload
+import androidx.compose.material.icons.filled.LibraryMusic
+import androidx.compose.material.icons.filled.Pause
+import androidx.compose.material.icons.filled.PlayArrow
+import androidx.compose.material.icons.filled.Piano
+import androidx.compose.material3.Card
+import androidx.compose.material3.CardDefaults
+import androidx.compose.material3.Icon
 import androidx.compose.material3.LinearProgressIndicator
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.OutlinedTextField
+import androidx.compose.material3.OutlinedTextFieldDefaults
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
@@ -25,15 +51,34 @@ import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
+import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clip
+import androidx.compose.ui.graphics.Brush
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.platform.LocalView
 import androidx.compose.ui.res.stringResource
+import androidx.compose.runtime.SideEffect
+import androidx.core.view.WindowCompat
+import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.core.content.ContextCompat
 import androidx.work.WorkInfo
 import com.rm.mp3tomidi.R
 import com.rm.mp3tomidi.convert.ConversionWorker
+import com.rm.mp3tomidi.ui.theme.BrandNavy
+import com.rm.mp3tomidi.ui.theme.BrandPink
+import com.rm.mp3tomidi.ui.theme.BrandTeal
+import com.rm.mp3tomidi.ui.theme.BrandYellow
+import com.rm.mp3tomidi.ui.theme.OutlineLavender
 import com.rm.mp3tomidi.util.displayNameOf
+
+// Teal and pink are near-complementary, so a plain 2-stop gradient between them interpolates
+// through a muddy gray midpoint in RGB space -- routing through yellow (which is also literally
+// the app icon's 3-color order, top to bottom) keeps it vivid the whole way across instead.
+private val HeaderGradient = Brush.horizontalGradient(listOf(BrandTeal, BrandYellow, BrandPink))
 
 @Composable
 fun MainScreen(viewModel: MainViewModel) {
@@ -45,6 +90,15 @@ fun MainScreen(viewModel: MainViewModel) {
 
     var outputFileName by rememberSaveable { mutableStateOf("output.mid") }
     val inputFileName = remember(inputUri) { inputUri?.let { displayNameOf(context, it) } }
+
+    // The gradient header sits edge-to-edge behind the status bar (see enableEdgeToEdge in
+    // MainActivity), so its icons need to stay light/white rather than following the system's
+    // light/dark-background default.
+    val view = LocalView.current
+    SideEffect {
+        val window = (view.context as Activity).window
+        WindowCompat.getInsetsController(window, view).isAppearanceLightStatusBars = false
+    }
 
     val notificationPermissionLauncher = rememberLauncherForActivityResult(
         ActivityResultContracts.RequestPermission(),
@@ -76,73 +130,250 @@ fun MainScreen(viewModel: MainViewModel) {
 
     val isRunning = workInfo?.state == WorkInfo.State.RUNNING || workInfo?.state == WorkInfo.State.ENQUEUED
 
-    Scaffold { padding ->
+    // Insets are handled by hand below (status bar padding inside AppHeader so the gradient
+    // itself still extends behind it, navigation bar padding at the bottom of the scrolling
+    // content) -- Scaffold's own default inset reservation would otherwise double up with that.
+    Scaffold(containerColor = MaterialTheme.colorScheme.background, contentWindowInsets = WindowInsets(0.dp)) { padding ->
         Column(
             modifier = Modifier
                 .fillMaxSize()
                 .padding(padding)
-                .padding(16.dp),
-            verticalArrangement = Arrangement.spacedBy(12.dp),
+                .verticalScroll(rememberScrollState()),
         ) {
-            Text(text = stringResource(R.string.app_name), style = MaterialTheme.typography.titleLarge)
+            AppHeader()
 
-            HorizontalDivider()
-
-            Button(onClick = { openInputLauncher.launch(arrayOf("audio/*")) }) {
-                Text(stringResource(R.string.select_mp3))
-            }
-            Text(inputFileName ?: stringResource(R.string.no_file_selected))
-            Button(
-                onClick = { inputUri?.let { viewModel.player.togglePlayback(it) } },
-                enabled = inputUri != null,
+            Column(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(horizontal = 20.dp)
+                    .padding(top = 20.dp, bottom = 32.dp)
+                    .windowInsetsPadding(WindowInsets.navigationBars),
+                verticalArrangement = Arrangement.spacedBy(16.dp),
             ) {
-                Text(stringResource(if (isPlaying) R.string.pause else R.string.play))
-            }
-
-            HorizontalDivider()
-
-            OutlinedTextField(
-                value = outputFileName,
-                onValueChange = { outputFileName = it },
-                label = { Text(stringResource(R.string.output_file_name)) },
-                modifier = Modifier.fillMaxWidth(),
-            )
-            Button(onClick = { createOutputLauncher.launch(outputFileName) }) {
-                Text(stringResource(R.string.choose_output))
-            }
-
-            HorizontalDivider()
-
-            Button(
-                onClick = {
-                    if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU &&
-                        ContextCompat.checkSelfPermission(
-                            context,
-                            Manifest.permission.POST_NOTIFICATIONS,
-                        ) != PackageManager.PERMISSION_GRANTED
-                    ) {
-                        notificationPermissionLauncher.launch(Manifest.permission.POST_NOTIFICATIONS)
-                    }
-                    viewModel.startConversion()
-                },
-                enabled = inputUri != null && outputUri != null && !isRunning,
-            ) {
-                Text(stringResource(R.string.convert))
-            }
-
-            val progress = workInfo?.progress
-            val stage = progress?.getString(ConversionWorker.KEY_PROGRESS_STAGE)
-            val fraction = progress?.getFloat(ConversionWorker.KEY_PROGRESS_FRACTION, 0f) ?: 0f
-
-            when (workInfo?.state) {
-                WorkInfo.State.RUNNING, WorkInfo.State.ENQUEUED -> {
-                    Text(stage ?: "")
-                    LinearProgressIndicator(progress = { fraction }, modifier = Modifier.fillMaxWidth())
+                SectionCard(title = "Source") {
+                    OutlinedActionButton(
+                        text = stringResource(R.string.select_mp3),
+                        icon = Icons.Filled.LibraryMusic,
+                        onClick = { openInputLauncher.launch(arrayOf("audio/*")) },
+                    )
+                    FileNameChip(inputFileName ?: stringResource(R.string.no_file_selected))
+                    OutlinedActionButton(
+                        text = stringResource(if (isPlaying) R.string.pause else R.string.play),
+                        icon = if (isPlaying) Icons.Filled.Pause else Icons.Filled.PlayArrow,
+                        enabled = inputUri != null,
+                        onClick = { inputUri?.let { viewModel.player.togglePlayback(it) } },
+                    )
                 }
-                WorkInfo.State.SUCCEEDED -> Text("Conversion complete")
-                WorkInfo.State.FAILED -> Text("Conversion failed")
-                else -> {}
+
+                SectionCard(title = "Destination") {
+                    OutlinedTextField(
+                        value = outputFileName,
+                        onValueChange = { outputFileName = it },
+                        label = { Text(stringResource(R.string.output_file_name)) },
+                        singleLine = true,
+                        shape = MaterialTheme.shapes.small,
+                        colors = OutlinedTextFieldDefaults.colors(
+                            focusedBorderColor = BrandNavy,
+                            focusedLabelColor = BrandNavy,
+                        ),
+                        modifier = Modifier.fillMaxWidth(),
+                    )
+                    OutlinedActionButton(
+                        text = stringResource(R.string.choose_output),
+                        icon = Icons.Filled.FileDownload,
+                        onClick = { createOutputLauncher.launch(outputFileName) },
+                    )
+                }
+
+                GradientButton(
+                    text = stringResource(R.string.convert),
+                    icon = Icons.Filled.Piano,
+                    enabled = inputUri != null && outputUri != null && !isRunning,
+                    onClick = {
+                        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU &&
+                            ContextCompat.checkSelfPermission(
+                                context,
+                                Manifest.permission.POST_NOTIFICATIONS,
+                            ) != PackageManager.PERMISSION_GRANTED
+                        ) {
+                            notificationPermissionLauncher.launch(Manifest.permission.POST_NOTIFICATIONS)
+                        }
+                        viewModel.startConversion()
+                    },
+                )
+
+                val progress = workInfo?.progress
+                val stage = progress?.getString(ConversionWorker.KEY_PROGRESS_STAGE)
+                val fraction = progress?.getFloat(ConversionWorker.KEY_PROGRESS_FRACTION, 0f) ?: 0f
+
+                when (workInfo?.state) {
+                    WorkInfo.State.RUNNING, WorkInfo.State.ENQUEUED -> {
+                        SectionCard(title = "Converting") {
+                            Text(stage ?: "", style = MaterialTheme.typography.bodyLarge)
+                            LinearProgressIndicator(
+                                progress = { fraction },
+                                color = BrandTeal,
+                                trackColor = OutlineLavender,
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .clip(RoundedCornerShape(50)),
+                            )
+                        }
+                    }
+                    WorkInfo.State.SUCCEEDED -> ResultBanner(
+                        text = "Conversion complete",
+                        icon = Icons.Filled.CheckCircle,
+                        color = BrandTeal,
+                    )
+                    WorkInfo.State.FAILED -> ResultBanner(
+                        text = "Conversion failed",
+                        icon = Icons.Filled.Error,
+                        color = BrandPink,
+                    )
+                    else -> {}
+                }
             }
         }
+    }
+}
+
+@Composable
+private fun AppHeader() {
+    Box(
+        modifier = Modifier
+            .fillMaxWidth()
+            .clip(RoundedCornerShape(bottomStart = 32.dp, bottomEnd = 32.dp))
+            .background(HeaderGradient)
+            .windowInsetsPadding(WindowInsets.statusBars)
+            .padding(horizontal = 24.dp, vertical = 28.dp),
+    ) {
+        Row(
+            modifier = Modifier.fillMaxWidth(),
+            horizontalArrangement = Arrangement.SpaceBetween,
+            verticalAlignment = Alignment.CenterVertically,
+        ) {
+            Text(
+                text = stringResource(R.string.app_name),
+                style = MaterialTheme.typography.headlineMedium,
+                color = Color.White,
+            )
+            Box(
+                modifier = Modifier
+                    .size(52.dp)
+                    .clip(CircleShape)
+                    .background(Color.White.copy(alpha = 0.25f)),
+                contentAlignment = Alignment.Center,
+            ) {
+                Icon(Icons.Filled.Piano, contentDescription = null, tint = Color.White)
+            }
+        }
+    }
+}
+
+@Composable
+private fun SectionCard(title: String, content: @Composable ColumnScope.() -> Unit) {
+    Card(
+        shape = MaterialTheme.shapes.medium,
+        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
+        elevation = CardDefaults.cardElevation(defaultElevation = 2.dp),
+        modifier = Modifier.fillMaxWidth(),
+    ) {
+        Column(
+            modifier = Modifier.padding(20.dp),
+            verticalArrangement = Arrangement.spacedBy(12.dp),
+        ) {
+            Text(
+                text = title.uppercase(),
+                style = MaterialTheme.typography.labelLarge,
+                color = BrandNavy.copy(alpha = 0.6f),
+            )
+            content()
+        }
+    }
+}
+
+@Composable
+private fun FileNameChip(name: String) {
+    Box(
+        modifier = Modifier
+            .fillMaxWidth()
+            .clip(MaterialTheme.shapes.small)
+            .background(MaterialTheme.colorScheme.background)
+            .padding(horizontal = 14.dp, vertical = 12.dp),
+    ) {
+        Text(
+            text = name,
+            style = MaterialTheme.typography.bodyLarge,
+            color = BrandNavy,
+            maxLines = 1,
+            overflow = TextOverflow.Ellipsis,
+        )
+    }
+}
+
+@Composable
+private fun OutlinedActionButton(
+    text: String,
+    icon: androidx.compose.ui.graphics.vector.ImageVector,
+    enabled: Boolean = true,
+    onClick: () -> Unit,
+) {
+    OutlinedButton(
+        onClick = onClick,
+        enabled = enabled,
+        shape = MaterialTheme.shapes.small,
+        modifier = Modifier.fillMaxWidth(),
+    ) {
+        Icon(icon, contentDescription = null, modifier = Modifier.size(18.dp))
+        Box(modifier = Modifier.padding(start = 8.dp)) { Text(text, fontWeight = FontWeight.SemiBold) }
+    }
+}
+
+@Composable
+private fun GradientButton(
+    text: String,
+    icon: androidx.compose.ui.graphics.vector.ImageVector,
+    enabled: Boolean,
+    onClick: () -> Unit,
+) {
+    val background = if (enabled) Modifier.background(HeaderGradient) else Modifier.background(OutlineLavender)
+    Box(
+        modifier = Modifier
+            .fillMaxWidth()
+            .clip(MaterialTheme.shapes.medium)
+            .then(background)
+            .clickable(enabled = enabled, onClick = onClick)
+            .padding(vertical = 16.dp),
+        contentAlignment = Alignment.Center,
+    ) {
+        Row(verticalAlignment = Alignment.CenterVertically) {
+            Icon(icon, contentDescription = null, tint = Color.White)
+            Text(
+                text = text,
+                color = Color.White,
+                style = MaterialTheme.typography.titleMedium,
+                modifier = Modifier.padding(start = 10.dp),
+            )
+        }
+    }
+}
+
+@Composable
+private fun ResultBanner(text: String, icon: androidx.compose.ui.graphics.vector.ImageVector, color: Color) {
+    Row(
+        modifier = Modifier
+            .fillMaxWidth()
+            .clip(MaterialTheme.shapes.medium)
+            .background(color.copy(alpha = 0.15f))
+            .padding(16.dp),
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+        Icon(icon, contentDescription = null, tint = color)
+        Text(
+            text = text,
+            color = BrandNavy,
+            fontWeight = FontWeight.SemiBold,
+            modifier = Modifier.padding(start = 10.dp),
+        )
     }
 }
