@@ -15,6 +15,7 @@ import java.io.OutputStream
 import java.nio.ByteBuffer
 import java.nio.ByteOrder
 import java.nio.FloatBuffer
+import kotlinx.coroutines.CancellationException
 
 /**
  * Separates a mixture into htdemucs_6s's 6 stems by running the ONNX export of that model
@@ -30,6 +31,17 @@ import java.nio.FloatBuffer
  * song). The decoded *input* mixture is still one in-memory array for the whole song, which
  * remains a scaling limit for very long inputs; streaming that too would need chunked decode
  * with random-access re-seeking instead of AudioDecoder's single-pass whole-file decode.
+ *
+ * [isCancelled] is polled explicitly between chunks rather than relying on coroutine cancellation
+ * (`coroutineContext.ensureActive()`) -- verified on-device that plain cancellation does *not*
+ * reliably work here: cancelling a running conversion via `WorkManager.cancelWorkById()` updated
+ * WorkManager's own state immediately, but the actual coroutine kept running for many more seconds
+ * afterward, completing several more chunks (`ensureActive()` between them never threw). Each
+ * chunk's ONNX inference (`session.run(...)`) is a long blocking native/JNI call, not a suspension
+ * point, so coroutine cancellation checks only get a chance to run between chunks in the first
+ * place -- and even there, it wasn't taking effect. [ListenableWorker.isStopped][androidx.work.ListenableWorker.isStopped]
+ * (threaded down from [com.rm.mp3tomidi.convert.ConversionWorker] as [isCancelled]) is a plain
+ * synchronous flag WorkManager sets directly, not dependent on that cancellation machinery.
  */
 class DemucsStemSeparator : StemSeparator {
 
@@ -37,9 +49,10 @@ class DemucsStemSeparator : StemSeparator {
         context: Context,
         inputAudio: Uri,
         durationUs: Long,
+        isCancelled: () -> Boolean,
         onProgress: suspend (stage: String, fraction: Float) -> Unit,
     ): List<RawStem> {
-        val modelFile = ModelProvider.ensureAvailable(context, MODEL_SPEC) { fraction ->
+        val modelFile = ModelProvider.ensureAvailable(context, MODEL_SPEC, isCancelled) { fraction ->
             onProgress(
                 "Downloading separation model (${(fraction * 100).toInt()}%)",
                 lerp(DOWNLOAD_RANGE_START, DOWNLOAD_RANGE_END, fraction),
@@ -75,6 +88,8 @@ class DemucsStemSeparator : StemSeparator {
         try {
             val placements = scheduler.chunkPlacements()
             placements.forEachIndexed { index, placement ->
+                if (isCancelled()) throw CancellationException("Conversion cancelled")
+
                 val chunkOutput = runChunk(session, env, audio, placement)
                 adder.addChunk(placement, scheduler.weight, chunkOutput)
 
@@ -88,6 +103,14 @@ class DemucsStemSeparator : StemSeparator {
                     lerp(SEPARATE_RANGE_START, SEPARATE_RANGE_END, (index + 1).toFloat() / placements.size),
                 )
             }
+        } catch (e: Throwable) {
+            // On success, these files become RawStem.pcmFile and ConversionPipeline.convert()'s
+            // own finally block takes over deleting them once every stage is done. On failure or
+            // cancellation here, no RawStem is ever created to hand that ownership off, so this is
+            // the only place that still knows about them -- without this, a cancelled or failed
+            // separation leaks up to 6 multi-hundred-MB-scale temp PCM files per attempt.
+            pcmFiles.forEach { it.delete() }
+            throw e
         } finally {
             session.close()
             sessionOptions.close()

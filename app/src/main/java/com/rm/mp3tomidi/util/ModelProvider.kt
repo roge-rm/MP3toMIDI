@@ -6,6 +6,7 @@ import java.net.HttpURLConnection
 import java.net.URL
 import java.security.MessageDigest
 import kotlin.math.floor
+import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 
@@ -27,13 +28,15 @@ object ModelProvider {
     suspend fun ensureAvailable(
         context: Context,
         spec: ModelSpec,
+        isCancelled: () -> Boolean,
         onProgress: suspend (fraction: Float) -> Unit,
-    ): File = ensureAvailable(File(context.filesDir, "models"), spec, onProgress)
+    ): File = ensureAvailable(File(context.filesDir, "models"), spec, isCancelled, onProgress)
 
     /** Core logic, factored out from the [Context]-based overload so it's unit-testable on the JVM. */
     suspend fun ensureAvailable(
         modelsDir: File,
         spec: ModelSpec,
+        isCancelled: () -> Boolean,
         onProgress: suspend (fraction: Float) -> Unit,
     ): File = withContext(Dispatchers.IO) {
         modelsDir.mkdirs()
@@ -43,7 +46,16 @@ object ModelProvider {
         }
 
         val tempFile = File(modelsDir, "${spec.fileName}.download")
-        download(spec.downloadUrl, tempFile, onProgress)
+        try {
+            download(spec.downloadUrl, tempFile, isCancelled, onProgress)
+        } catch (e: Throwable) {
+            // A cancelled or failed download otherwise leaves a partial, unusably-corrupt file
+            // (up to the full ~235MB model size) sitting in app storage indefinitely -- the next
+            // ensureAvailable() call would just overwrite it from scratch anyway (no resume
+            // support), so nothing is lost by deleting it now instead of leaving it as dead weight.
+            tempFile.delete()
+            throw e
+        }
 
         val actualHash = sha256Of(tempFile)
         check(actualHash == spec.sha256) {
@@ -56,7 +68,12 @@ object ModelProvider {
         destination
     }
 
-    private suspend fun download(url: String, destination: File, onProgress: suspend (Float) -> Unit) {
+    private suspend fun download(
+        url: String,
+        destination: File,
+        isCancelled: () -> Boolean,
+        onProgress: suspend (Float) -> Unit,
+    ) {
         var currentUrl = url
         var redirects = 0
         var connection: HttpURLConnection
@@ -90,6 +107,10 @@ object ModelProvider {
                 val buffer = ByteArray(BUFFER_SIZE)
                 var totalRead = 0L
                 while (true) {
+                    // Polled explicitly rather than relying on coroutine cancellation -- see
+                    // DemucsStemSeparator's isCancelled doc for why that was verified unreliable
+                    // inside a CoroutineWorker.
+                    if (isCancelled()) throw CancellationException("Model download cancelled")
                     val bytesRead = input.read(buffer)
                     if (bytesRead < 0) break
                     output.write(buffer, 0, bytesRead)

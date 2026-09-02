@@ -33,7 +33,10 @@ class TimbreClassifier(
     override suspend fun classify(context: Context, stem: RawStem, notes: List<NoteEvent>, bpm: Int): Stem {
         if (stem.label == "drums") return fallback.classify(context, stem, notes, bpm)
 
-        val modelFile = ModelProvider.ensureAvailable(context, MODEL_SPEC) {}
+        // Cancellation isn't threaded through InstrumentClassifier -- this is a one-time ~16MB
+        // download (vs. Demucs's ~235MB), over well before a user would reasonably tap cancel
+        // expecting it to matter here specifically.
+        val modelFile = ModelProvider.ensureAvailable(context, MODEL_SPEC, { false }) {}
         val waveform = loadAsMono16k(stem)
         if (waveform.isEmpty()) return fallback.classify(context, stem, notes, bpm)
 

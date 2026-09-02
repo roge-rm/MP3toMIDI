@@ -5,6 +5,10 @@
     <string name="choose_output">Choose output file</string>
     <string name="output_file_name">Output file name</string>
     <string name="convert">Convert to MIDI</string>
+    <string name="cancel_conversion">Cancel conversion</string>
+    <string name="cancel_conversion_title">Cancel conversion?</string>
+    <string name="cancel_conversion_message">This will stop the conversion and delete any files it has created so far. This can\'t be undone.</string>
+    <string name="keep_converting">Keep converting</string>
     <string name="play">Play</string>
     <string name="pause">Pause</string>
     <string name="no_file_selected">No file selected</string>

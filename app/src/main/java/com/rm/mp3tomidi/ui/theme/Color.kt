@@ -8,6 +8,7 @@ val BrandNavy = Color(0xFF10102B)
 val BrandTeal = Color(0xFF00E5C7)
 val BrandPink = Color(0xFFFF4D9D)
 val BrandYellow = Color(0xFFFFC93C)
+val DangerRed = Color(0xFFE5484D)
 
 // Bright brand colors are for things they sit *behind* (gradients, filled chips, progress
 // fill) -- as text/icon color on a light background they're too low-contrast to read

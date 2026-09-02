@@ -6,10 +6,17 @@ import java.io.File
 
 /** Splits a decoded audio source into its constituent instrument stems. */
 interface StemSeparator {
+    /**
+     * [isCancelled] is polled explicitly (rather than relying solely on coroutine cancellation)
+     * because separation's per-chunk ONNX inference is a long blocking native call with no
+     * suspension point of its own -- see [DemucsStemSeparator]'s doc for why plain
+     * `coroutineContext.ensureActive()` was verified on-device to *not* reliably interrupt it.
+     */
     suspend fun separate(
         context: Context,
         inputAudio: Uri,
         durationUs: Long,
+        isCancelled: () -> Boolean,
         onProgress: suspend (stage: String, fraction: Float) -> Unit,
     ): List<RawStem>
 }
@@ -23,6 +30,7 @@ class NoOpStemSeparator : StemSeparator {
         context: Context,
         inputAudio: Uri,
         durationUs: Long,
+        isCancelled: () -> Boolean,
         onProgress: suspend (stage: String, fraction: Float) -> Unit,
     ): List<RawStem> {
         val sampleRate = 44_100

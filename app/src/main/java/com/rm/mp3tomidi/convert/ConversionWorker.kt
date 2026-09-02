@@ -17,6 +17,7 @@ import androidx.work.WorkerParameters
 import androidx.work.workDataOf
 import com.rm.mp3tomidi.R
 import com.rm.mp3tomidi.midi.MidiFileWriter
+import kotlinx.coroutines.CancellationException
 
 /** Runs the full conversion pipeline as foreground work so it survives the app being backgrounded. */
 class ConversionWorker(
@@ -33,7 +34,7 @@ class ConversionWorker(
 
         return try {
             val pipeline = ConversionPipeline()
-            val result = pipeline.convert(applicationContext, inputUri) { stage, fraction ->
+            val result = pipeline.convert(applicationContext, inputUri, { isStopped }) { stage, fraction ->
                 setProgress(workDataOf(KEY_PROGRESS_STAGE to stage, KEY_PROGRESS_FRACTION to fraction))
                 setForeground(foregroundInfo(stage, (fraction * 100).toInt()))
             }
@@ -45,6 +46,12 @@ class ConversionWorker(
             } ?: false
 
             if (written) Result.success() else Result.failure()
+        } catch (e: CancellationException) {
+            // Must propagate, not be reported as a Result.failure() -- this is what actually runs
+            // ConversionPipeline/DemucsStemSeparator's cleanup code (their catch/finally blocks
+            // unwind the same way any other thrown exception would) and lets WorkManager observe
+            // this as a real cancellation rather than a completed-with-failure work item.
+            throw e
         } catch (e: Exception) {
             Result.failure(workDataOf(KEY_ERROR to (e.message ?: e.toString())))
         }
