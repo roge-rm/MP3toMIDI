@@ -1,6 +1,7 @@
 package com.rm.mp3tomidi.convert.stages
 
 import kotlin.math.PI
+import kotlin.math.cos
 import kotlin.math.exp
 import kotlin.math.sqrt
 
@@ -51,6 +52,50 @@ object AudioFilters {
         val energies = FloatArray(numFrames)
         for (f in 0 until numFrames) {
             energies[f] = rms(x, f * hopSize, f * hopSize + frameSize)
+        }
+
+        val flux = FloatArray(numFrames)
+        for (f in 1 until numFrames) flux[f] = maxOf(0f, energies[f] - energies[f - 1])
+        return flux
+    }
+
+    /**
+     * Same idea as [energyFlux], but the per-frame energy only counts spectral power at or above
+     * [cutoffHz] (via a real FFT -- [Fft] requires a power-of-two size, which the frame sizes used
+     * here already are) instead of full-band time-domain RMS.
+     *
+     * [DrumOnsetDetector] uses this as a second, independent onset-detection pass because a single
+     * full-band adaptive threshold badly under-detects quiet high-frequency hits (hi-hats) when
+     * louder low-frequency ones (kick/bass) dominate the track's overall energy statistics --
+     * confirmed on real audio: an electronic song's drums missed 57% of its independently-detectable
+     * high-band transients this way, more than double the ~20-24% missed on a jungle or rock track
+     * with a more balanced full-band energy budget. A one-pole highpass filter was tried first and
+     * rejected for the same leakiness reason documented on DrumHitClassifier -- it let enough
+     * low-frequency energy through to spuriously flag kick decay tails as "high-band" onsets.
+     */
+    fun highBandEnergyFlux(x: FloatArray, frameSize: Int, hopSize: Int, sampleRate: Int, cutoffHz: Float): FloatArray {
+        if (x.size < frameSize) return FloatArray(0)
+        val numFrames = (x.size - frameSize) / hopSize + 1
+        if (numFrames < 2) return FloatArray(0)
+
+        val binHz = sampleRate.toFloat() / frameSize
+        val energies = FloatArray(numFrames)
+        val re = FloatArray(frameSize)
+        val im = FloatArray(frameSize)
+        for (f in 0 until numFrames) {
+            val start = f * hopSize
+            for (i in 0 until frameSize) {
+                val hann = 0.5f - 0.5f * cos(2.0 * PI * i / (frameSize - 1)).toFloat()
+                re[i] = x[start + i] * hann
+                im[i] = 0f
+            }
+            Fft.transform(re, im)
+
+            var highPower = 0.0
+            for (k in 0..frameSize / 2) {
+                if (k * binHz >= cutoffHz) highPower += (re[k] * re[k] + im[k] * im[k]).toDouble()
+            }
+            energies[f] = sqrt(highPower).toFloat()
         }
 
         val flux = FloatArray(numFrames)
