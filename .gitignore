@@ -22,3 +22,4 @@ local.properties
 !app/src/main/assets/models/basic_pitch_icassp_2022.onnx
 /tools/demucs_export/venv/
 /tools/basic_pitch_export/venv/
+/tools/yamnet_export/venv/
