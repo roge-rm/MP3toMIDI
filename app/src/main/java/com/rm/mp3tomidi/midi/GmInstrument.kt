@@ -10,6 +10,7 @@ object GmInstrument {
     const val TRUMPET = 56
     const val ALTO_SAX = 65
     const val FLUTE = 73
+    const val LEAD_VOICE = 85
     const val STANDARD_DRUM_KIT = 0 // drum "programs" select a kit via bank, not the melodic list below
 
     val NAMES = listOf(

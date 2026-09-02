@@ -12,6 +12,10 @@ data class NoteEvent(
 data class RawStem(
     val label: String,
     val durationUs: Long,
+    /** Interleaved PCM, [sampleRate]/[channelCount] as produced by the separator. */
+    val interleavedPcm: FloatArray,
+    val sampleRate: Int,
+    val channelCount: Int,
 )
 
 /** A fully processed stem: identified instrument + its transcribed notes, ready for MIDI assembly. */
