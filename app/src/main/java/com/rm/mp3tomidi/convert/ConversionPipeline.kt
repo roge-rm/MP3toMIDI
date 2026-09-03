@@ -7,6 +7,7 @@ import com.rm.mp3tomidi.convert.stages.CompositeNoteTranscriber
 import com.rm.mp3tomidi.convert.stages.DemucsSourceClassifier
 import com.rm.mp3tomidi.convert.stages.DemucsStemSeparator
 import com.rm.mp3tomidi.convert.stages.InstrumentClassifier
+import com.rm.mp3tomidi.convert.stages.NoteEvent
 import com.rm.mp3tomidi.convert.stages.NoteTranscriber
 import com.rm.mp3tomidi.convert.stages.RawStem
 import com.rm.mp3tomidi.convert.stages.Stem
@@ -15,6 +16,7 @@ import com.rm.mp3tomidi.convert.stages.TempoDetector
 import com.rm.mp3tomidi.convert.stages.TimbreClassifier
 import com.rm.mp3tomidi.util.PcmUtils
 import kotlinx.coroutines.CancellationException
+import kotlin.math.roundToInt
 import kotlin.math.sqrt
 
 /** Result of a full conversion: the transcribed/classified stems plus the tempo detected for them. */
@@ -42,7 +44,8 @@ class ConversionPipeline(
             onProgress("Detecting tempo", 0.5f)
             val bpm = detectBpm(rawStems)
 
-            val activeStems = dropSilentPitchedStems(rawStems)
+            val pitchedStems = analyzePitchedStems(rawStems)
+            val activeStems = pitchedStems.activeStems
 
             val notesByStem = activeStems.mapIndexed { index, raw ->
                 if (isCancelled()) throw CancellationException("Conversion cancelled")
@@ -53,11 +56,13 @@ class ConversionPipeline(
                 raw to transcriber.transcribe(context, raw, bpm)
             }
 
-            val stems = notesByStem.mapIndexed { index, (raw, notes) ->
+            val balancedNotesByStem = balancePitchedVelocities(notesByStem, pitchedStems.rmsByLabel)
+
+            val stems = balancedNotesByStem.mapIndexed { index, (raw, notes) ->
                 if (isCancelled()) throw CancellationException("Conversion cancelled")
                 onProgress(
-                    "Mapping instruments to GM programs (${index + 1}/${notesByStem.size}: ${raw.label})",
-                    lerp(0.8f, 0.95f, index.toFloat() / notesByStem.size),
+                    "Mapping instruments to GM programs (${index + 1}/${balancedNotesByStem.size}: ${raw.label})",
+                    lerp(0.8f, 0.95f, index.toFloat() / balancedNotesByStem.size),
                 )
                 classifier.classify(context, raw, notes, bpm)
             }
@@ -83,6 +88,8 @@ class ConversionPipeline(
         return TempoDetector.detectBpm(mono, drums.sampleRate)
     }
 
+    private data class PitchedStemAnalysis(val activeStems: List<RawStem>, val rmsByLabel: Map<String, Float>)
+
     /**
      * Drops a pitched stem whose separated audio is essentially Demucs' residual noise floor
      * rather than a real instrument -- most consequential for the 6-stem model's much weaker
@@ -94,12 +101,43 @@ class ConversionPipeline(
      * that noise floor, which sounds like an instrument that was never really in the song cutting
      * in and out throughout it. Drums is exempt -- its GM program comes from Demucs' own label,
      * not Basic Pitch transcription, so it can't exhibit this failure mode.
+     *
+     * Also returns each surviving stem's RMS, reused by [balancePitchedVelocities] rather than
+     * re-reading every stem's (tens-of-MB) PCM file a second time just to recompute the same
+     * numbers.
      */
-    private fun dropSilentPitchedStems(rawStems: List<RawStem>): List<RawStem> {
+    private fun analyzePitchedStems(rawStems: List<RawStem>): PitchedStemAnalysis {
         val pitched = rawStems.filter { it.label != "drums" }
         val rmsByLabel = pitched.associate { it.label to rmsOf(PcmUtils.readInterleavedPcm(it.pcmFile)) }
         val silentLabels = silentPitchedLabels(rmsByLabel)
-        return rawStems.filter { it.label !in silentLabels }
+        val activeStems = rawStems.filter { it.label !in silentLabels }
+        return PitchedStemAnalysis(activeStems, rmsByLabel.filterKeys { it !in silentLabels })
+    }
+
+    /**
+     * Scales each pitched stem's note velocities relative to how loud that stem actually is
+     * compared to the loudest pitched stem in the song. [BasicPitchTranscriber]'s velocities are
+     * already real-loudness-based *within* one stem (see its doc), but that alone still leaves a
+     * naturally-quiet stem (e.g. a background pad) sounding as loud as a naturally-prominent one
+     * (e.g. the bass line), since each was only ever scaled against its own peak. Measured
+     * directly on real songs (see [BasicPitchTranscriber]'s doc): stem RMS varies by hundreds of
+     * percent between stems in the same song, none of which showed up in velocity at all before
+     * this. Drums is exempt -- it already has its own real dynamics via
+     * [DrumTranscriber] and isn't being compared against a set of wildly different instrument
+     * roles the way the five pitched stems are. [MIN_BALANCE_SCALE] floors how far down a
+     * genuinely-quieter-but-real stem (one that already passed [analyzePitchedStems]'s
+     * noise-floor check) can be pushed, so it's de-emphasized rather than made inaudible.
+     */
+    private fun balancePitchedVelocities(
+        notesByStem: List<Pair<RawStem, List<NoteEvent>>>,
+        pitchedRmsByLabel: Map<String, Float>,
+    ): List<Pair<RawStem, List<NoteEvent>>> {
+        val scales = velocityScales(pitchedRmsByLabel)
+        if (scales.isEmpty()) return notesByStem
+        return notesByStem.map { (raw, notes) ->
+            val scale = scales[raw.label] ?: return@map raw to notes
+            raw to notes.map { it.copy(velocity = (it.velocity * scale).roundToInt().coerceIn(1, 127)) }
+        }
     }
 
     private fun lerp(start: Float, end: Float, fraction: Float): Float = start + (end - start) * fraction
@@ -117,8 +155,14 @@ class ConversionPipeline(
     }
 
     companion object {
-        // See dropSilentPitchedStems's doc for how this was derived from real songs.
+        // See analyzePitchedStems's doc for how this was derived from real songs.
         private const val MIN_STEM_RMS_RATIO = 0.04f
+
+        // See balancePitchedVelocities's doc. 0.35 was chosen to noticeably de-emphasize a
+        // quieter-but-real stem without pushing it near-silent -- no real-song calibration behind
+        // this specific number the way MIN_STEM_RMS_RATIO has, since "how much quieter should a
+        // quieter stem sound" is a judgment call rather than a bogus/real cutoff to detect.
+        private const val MIN_BALANCE_SCALE = 0.35f
 
         internal fun rmsOf(pcm: FloatArray): Float {
             if (pcm.isEmpty()) return 0f
@@ -134,6 +178,16 @@ class ConversionPipeline(
             val loudest = rmsByLabel.values.maxOrNull() ?: return emptySet()
             if (loudest <= 0f) return emptySet()
             return rmsByLabel.filterValues { it < loudest * minRatio }.keys
+        }
+
+        /** Per-label velocity scale factor, relative to the loudest stem in [rmsByLabel]. */
+        internal fun velocityScales(
+            rmsByLabel: Map<String, Float>,
+            minScale: Float = MIN_BALANCE_SCALE,
+        ): Map<String, Float> {
+            val loudest = rmsByLabel.values.maxOrNull() ?: return emptyMap()
+            if (loudest <= 0f) return emptyMap()
+            return rmsByLabel.mapValues { (_, rms) -> (rms / loudest).coerceIn(minScale, 1f) }
         }
     }
 }

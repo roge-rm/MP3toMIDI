@@ -3,7 +3,6 @@ package com.rm.mp3tomidi.convert.stages
 import android.content.Context
 import com.rm.mp3tomidi.midi.MidiConstants
 import com.rm.mp3tomidi.util.PcmUtils
-import kotlin.math.abs
 import kotlin.math.roundToInt
 import kotlin.math.roundToLong
 
@@ -23,7 +22,7 @@ class DrumTranscriber : NoteTranscriber {
         val onsets = DrumOnsetDetector.detect(mono, stem.sampleRate)
         if (onsets.isEmpty()) return emptyList()
 
-        val peakAmplitude = (mono.maxOf { abs(it) }).coerceAtLeast(MIN_AMPLITUDE)
+        val peakAmplitude = AudioFilters.peak(mono).coerceAtLeast(MIN_AMPLITUDE)
         val durationTicks = samplesToTicks((DURATION_SECONDS * stem.sampleRate).toInt(), stem.sampleRate, bpm)
             .coerceAtLeast(1)
 
@@ -31,7 +30,8 @@ class DrumTranscriber : NoteTranscriber {
             val nextOnsetSample = onsets.getOrElse(index + 1) { mono.size }
             val voice = DrumHitClassifier.classify(mono, onsetSample, stem.sampleRate, nextOnsetSample)
             val startTick = samplesToTicks(onsetSample, stem.sampleRate, bpm)
-            val localPeak = localPeakAmplitude(mono, onsetSample, stem.sampleRate)
+            val windowEnd = minOf(mono.size, onsetSample + (VELOCITY_WINDOW_SECONDS * stem.sampleRate).toInt())
+            val localPeak = AudioFilters.peak(mono, onsetSample, windowEnd)
             val velocity = (127f * (localPeak / peakAmplitude)).roundToInt().coerceIn(MIN_VELOCITY, 127)
             NoteEvent(
                 startTick = startTick,
@@ -45,13 +45,6 @@ class DrumTranscriber : NoteTranscriber {
     private fun loadMono(stem: RawStem): FloatArray {
         val raw = PcmUtils.readInterleavedPcm(stem.pcmFile)
         return PcmUtils.remixChannels(raw, stem.channelCount, 1)
-    }
-
-    private fun localPeakAmplitude(mono: FloatArray, onsetSample: Int, sampleRate: Int): Float {
-        val end = minOf(mono.size, onsetSample + (VELOCITY_WINDOW_SECONDS * sampleRate).toInt())
-        var peak = 0f
-        for (i in onsetSample until end) peak = maxOf(peak, abs(mono[i]))
-        return peak
     }
 
     private fun samplesToTicks(samples: Int, sampleRate: Int, bpm: Int): Long {

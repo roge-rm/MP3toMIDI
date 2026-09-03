@@ -58,4 +58,32 @@ class ConversionPipelineTest {
 
         assertEquals(emptySet<String>(), silent)
     }
+
+    @Test
+    fun `velocityScales gives the loudest stem a scale of 1`() {
+        val scales = ConversionPipeline.velocityScales(mapOf("bass" to 0.13f, "vocals" to 0.11f))
+
+        assertEquals(1f, scales.getValue("bass"), 1e-6f)
+    }
+
+    @Test
+    fun `velocityScales scales a quieter stem down proportionally to its real loudness`() {
+        // vocals at 50% of bass's RMS -- expect roughly half the velocity scale, well above the floor
+        val scales = ConversionPipeline.velocityScales(mapOf("bass" to 0.10f, "vocals" to 0.05f))
+
+        assertEquals(0.5f, scales.getValue("vocals"), 1e-6f)
+    }
+
+    @Test
+    fun `velocityScales floors a much quieter stem instead of letting it go silent`() {
+        // ~8% of the loudest stem -- below MIN_BALANCE_SCALE, should be floored rather than ~0.08
+        val scales = ConversionPipeline.velocityScales(mapOf("bass" to 0.10f, "piano" to 0.008f), minScale = 0.35f)
+
+        assertEquals(0.35f, scales.getValue("piano"), 1e-6f)
+    }
+
+    @Test
+    fun `velocityScales returns empty for an all-silent map`() {
+        assertEquals(emptyMap<String, Float>(), ConversionPipeline.velocityScales(mapOf("bass" to 0f)))
+    }
 }
