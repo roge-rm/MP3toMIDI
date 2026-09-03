@@ -129,8 +129,16 @@ fun MainScreen(viewModel: MainViewModel, onSwitchScreen: () -> Unit) {
         }
     }
 
+    // A real device was observed appending a bogus extra extension ("song.mid.rtx") to the typed
+    // filename -- ACTION_CREATE_DOCUMENT lets the provider consult MimeTypeMap for the "correct"
+    // extension for the declared type and append it if the name doesn't already end with it, and
+    // "audio/midi" apparently maps to garbage on that device's MimeTypeMap (every .mid file this
+    // session, even on the emulator, shows its type as "RTX audio" in the system picker -- there
+    // it's cosmetic only, but the same lookup evidently drives a real rename elsewhere). Same
+    // class of bug as MIDI_MIME_TYPES/SOUNDFONT_MIME_TYPES in PlayScreen.kt: a generic type with
+    // no canonical extension can't trigger this on any device.
     val createOutputLauncher = rememberLauncherForActivityResult(
-        ActivityResultContracts.CreateDocument("audio/midi"),
+        ActivityResultContracts.CreateDocument("application/octet-stream"),
     ) { uri ->
         if (uri != null) {
             context.contentResolver.takePersistableUriPermission(
