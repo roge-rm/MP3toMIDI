@@ -38,12 +38,51 @@ class BasicPitchNoteDecoderTest {
         onsets[10][40] = 0.2f
         for (t in 10..24) frames[t][40] = 0.6f
 
-        val notes = BasicPitchNoteDecoder.decode(frames, onsets).sortedBy { it.startFrame }
+        // melodia_trick=False in the fixture this was captured from -- see the dedicated melodia
+        // trick test below for that pass, exercised separately so each test stays focused.
+        val notes = BasicPitchNoteDecoder.decode(frames, onsets, melodiaTrick = false).sortedBy { it.startFrame }
 
         val expected = listOf(
             ExpectedNote(2, 15, 31, 0.59999996f),
             ExpectedNote(5, 19, 41, 0.5f),
             ExpectedNote(10, 25, 61, 0.6f),
+        )
+        assertEquals(expected.size, notes.size)
+        expected.zip(notes).forEach { (want, got) ->
+            assertEquals(want.startFrame, got.startFrame)
+            assertEquals(want.endFrame, got.endFrame)
+            assertEquals(want.pitch, got.pitch)
+            assertEquals(want.amplitude.toDouble(), got.amplitude.toDouble(), 1e-5)
+        }
+    }
+
+    @Test
+    fun `melodia trick recovers a sustained note that never had a clean onset, without disturbing onset-based notes`() {
+        // Ground truth captured via tools/basic_pitch_export/generate_melodia_fixture.py running
+        // the real output_to_notes_polyphonic(..., melodia_trick=True).
+        val nTimes = 40
+        val nFreqs = 88
+        val frames = Array(nTimes) { FloatArray(nFreqs) }
+        val onsets = Array(nTimes) { FloatArray(nFreqs) }
+
+        // Same two onset-based notes as the test above, so this also verifies melodia trick
+        // correctly leaves their already-claimed regions alone.
+        onsets[2][10] = 0.9f
+        for (t in 2..14) frames[t][10] = 0.6f
+        onsets[5][20] = 0.8f
+        for (t in 5..18) frames[t][20] = 0.5f
+
+        // Flat sustained energy from frame 0 on bin 50, no onset anywhere -- constant energy has
+        // zero frame-to-frame diff, so get_infered_onsets can't surface it either. Only the
+        // melodia trick's leftover-energy sweep can find this.
+        for (t in 0..29) frames[t][50] = 0.6f
+
+        val notes = BasicPitchNoteDecoder.decode(frames, onsets).sortedBy { it.startFrame }
+
+        val expected = listOf(
+            ExpectedNote(0, 29, 71, 0.6f),
+            ExpectedNote(2, 15, 31, 0.59999996f),
+            ExpectedNote(5, 19, 41, 0.5f),
         )
         assertEquals(expected.size, notes.size)
         expected.zip(notes).forEach { (want, got) ->

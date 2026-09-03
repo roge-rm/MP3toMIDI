@@ -6,14 +6,18 @@ import kotlin.math.min
 
 /**
  * Port of basic_pitch.note_creation's onset/frame-activation-matrix -> note-event decoder
- * (get_infered_onsets + output_to_notes_polyphonic + model_frames_to_time), verified against the
- * real Python implementation's output on a fixed synthetic input (see
+ * (get_infered_onsets + output_to_notes_polyphonic, including the melodia trick + model_frames_to_time),
+ * verified against the real Python implementation's output on a fixed synthetic input (see
  * BasicPitchNoteDecoderTest) rather than derived from reading the algorithm description alone.
  *
- * Deliberately not ported: the "melodia trick" second pass (which grows notes from leftover
- * energy that never had a clear onset) and pitch bends (which our MIDI writer has no
- * representation for, and which don't fit the single-pitch-per-note NoteEvent model anyway).
- * Both are real quality features of upstream Basic Pitch; this is the pragmatic subset.
+ * Deliberately not ported: pitch bends -- our MIDI writer has no representation for them, and
+ * they don't fit the single-pitch-per-note NoteEvent model anyway.
+ *
+ * The melodia trick only adds notes from energy the onset-based pass never claimed (a real
+ * pitched tone that never had a clean attack, e.g. a bowed or synth-pad entrance); it does not
+ * merge or otherwise fix notes the onset pass already fragmented into several short ones for a
+ * single sustained tone -- see [com.rm.mp3tomidi.convert.stages.BasicPitchTranscriber]'s
+ * doc for the separate, non-upstream fix for that.
  */
 object BasicPitchNoteDecoder {
 
@@ -31,6 +35,7 @@ object BasicPitchNoteDecoder {
         minNoteLen: Int = 11,
         energyTol: Int = 11,
         inferOnsets: Boolean = true,
+        melodiaTrick: Boolean = true,
     ): List<RawNote> {
         val nTimes = frames.size
         if (nTimes == 0) return emptyList()
@@ -92,6 +97,59 @@ object BasicPitchNoteDecoder {
             val amplitude = sum / (i - noteStartIdx)
 
             notes += RawNote(noteStartIdx, i, freqIdx + MIDI_OFFSET, amplitude)
+        }
+
+        if (melodiaTrick) {
+            while (true) {
+                // Global argmax over remainingEnergy, row-major (time outer, freq inner) so ties
+                // resolve to the earliest-time/lowest-freq occurrence -- matches np.argmax's
+                // tie-breaking on a flattened 2D array exactly (first occurrence in C order).
+                var maxVal = Float.NEGATIVE_INFINITY
+                var iMid = -1
+                var freqIdx = -1
+                for (t in 0 until nTimes) {
+                    for (f in 0 until nFreqs) {
+                        if (remainingEnergy[t][f] > maxVal) {
+                            maxVal = remainingEnergy[t][f]
+                            iMid = t
+                            freqIdx = f
+                        }
+                    }
+                }
+                if (maxVal <= frameThresh) break
+
+                remainingEnergy[iMid][freqIdx] = 0f
+
+                var i = iMid + 1
+                var k = 0
+                while (i < nTimes - 1 && k < energyTol) {
+                    if (remainingEnergy[i][freqIdx] < frameThresh) k++ else k = 0
+                    remainingEnergy[i][freqIdx] = 0f
+                    if (freqIdx < MAX_FREQ_IDX) remainingEnergy[i][freqIdx + 1] = 0f
+                    if (freqIdx > 0) remainingEnergy[i][freqIdx - 1] = 0f
+                    i++
+                }
+                val iEnd = i - 1 - k
+
+                i = iMid - 1
+                k = 0
+                while (i > 0 && k < energyTol) {
+                    if (remainingEnergy[i][freqIdx] < frameThresh) k++ else k = 0
+                    remainingEnergy[i][freqIdx] = 0f
+                    if (freqIdx < MAX_FREQ_IDX) remainingEnergy[i][freqIdx + 1] = 0f
+                    if (freqIdx > 0) remainingEnergy[i][freqIdx - 1] = 0f
+                    i--
+                }
+                val iStart = i + 1 + k
+
+                if (iEnd - iStart <= minNoteLen) continue
+
+                var sum = 0f
+                for (t in iStart until iEnd) sum += frames[t][freqIdx]
+                val amplitude = sum / (iEnd - iStart)
+
+                notes += RawNote(iStart, iEnd, freqIdx + MIDI_OFFSET, amplitude)
+            }
         }
 
         return notes
