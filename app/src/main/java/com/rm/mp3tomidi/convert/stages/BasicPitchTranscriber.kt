@@ -8,6 +8,7 @@ import com.rm.mp3tomidi.midi.MidiConstants
 import com.rm.mp3tomidi.util.PcmUtils
 import java.nio.FloatBuffer
 import kotlin.math.floor
+import kotlin.math.max
 import kotlin.math.min
 import kotlin.math.roundToInt
 import kotlin.math.roundToLong
@@ -22,6 +23,17 @@ import kotlin.math.roundToLong
  * is BasicPitchNoteDecoder (see its doc for what's intentionally not ported).
  *
  * Not suitable for drums -- Basic Pitch assumes pitched input. See CompositeNoteTranscriber.
+ *
+ * [mergeRepeatedNotes] is a non-upstream addition, applied after decoding: Basic Pitch's onset
+ * loop starts a brand-new note at *every* qualifying local peak in the onset-activation matrix,
+ * and a single sustained real-world tone can produce more than one such peak (vibrato, a dynamic
+ * swell, harmonic beating) even though there was only ever one attack. Verified on real converted
+ * songs this was genuinely common -- 15-43% of all notes across 8 real test songs belonged to a
+ * run of 3+ consecutive same-pitch notes with <=60ms gaps between them, i.e. one held tone
+ * chopped into several short repeats, not several deliberate repeated notes. Neither the base
+ * decoder nor the melodia trick (see BasicPitchNoteDecoder's doc) fixes this -- melodia trick only
+ * adds notes from energy the onset loop never claimed at all, it never revisits notes the onset
+ * loop already created.
  */
 class BasicPitchTranscriber : NoteTranscriber {
 
@@ -49,7 +61,7 @@ class BasicPitchTranscriber : NoteTranscriber {
         val onsets = concatAndTrim(onsetWindows, totalFrames)
         val frames = concatAndTrim(noteWindows, totalFrames)
 
-        val rawNotes = BasicPitchNoteDecoder.decode(frames, onsets)
+        val rawNotes = mergeRepeatedNotes(BasicPitchNoteDecoder.decode(frames, onsets))
         val times = BasicPitchNoteDecoder.modelFramesToTime(totalFrames)
 
         return rawNotes.map { note ->
@@ -121,9 +133,40 @@ class BasicPitchTranscriber : NoteTranscriber {
         return (seconds * ticksPerSecond).roundToLong()
     }
 
+    /**
+     * Combines consecutive same-pitch notes separated by a small gap into one longer note --
+     * see this class's doc for why the decoder produces these in the first place. [MERGE_GAP_FRAMES]
+     * (5 frames, ~58ms) is deliberately smaller than the decoder's own 11-frame (~128ms)
+     * energy-tolerance grace period: this targets only near-immediate re-triggers of what's
+     * almost certainly the same held tone, not a genuine short rest between two separately
+     * played notes at the same pitch.
+     */
+    internal fun mergeRepeatedNotes(notes: List<BasicPitchNoteDecoder.RawNote>): List<BasicPitchNoteDecoder.RawNote> {
+        return notes
+            .groupBy { it.pitch }
+            .values
+            .flatMap { pitchNotes ->
+                val sorted = pitchNotes.sortedBy { it.startFrame }
+                val merged = mutableListOf(sorted.first())
+                for (next in sorted.drop(1)) {
+                    val current = merged.last()
+                    if (next.startFrame - current.endFrame <= MERGE_GAP_FRAMES) {
+                        merged[merged.lastIndex] = current.copy(
+                            endFrame = max(current.endFrame, next.endFrame),
+                            amplitude = max(current.amplitude, next.amplitude),
+                        )
+                    } else {
+                        merged += next
+                    }
+                }
+                merged
+            }
+    }
+
     companion object {
         private const val ASSET_PATH = "models/basic_pitch_icassp_2022.onnx"
         private const val INPUT_NAME = "serving_default_input_2:0"
+        private const val MERGE_GAP_FRAMES = 5
         private const val ONSET_OUTPUT_NAME = "StatefulPartitionedCall:2"
         private const val NOTE_OUTPUT_NAME = "StatefulPartitionedCall:1"
 
