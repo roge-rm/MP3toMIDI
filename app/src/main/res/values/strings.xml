@@ -13,4 +13,17 @@
     <string name="pause">Pause</string>
     <string name="no_file_selected">No file selected</string>
     <string name="conversion_channel_name">MP3 to MIDI conversion</string>
+
+    <string name="switch_to_play_screen">Play a MIDI file</string>
+    <string name="switch_to_convert_screen">Back to convert</string>
+    <string name="midi_file_section">MIDI file</string>
+    <string name="choose_midi_file">Choose MIDI file</string>
+    <string name="no_midi_file_selected">No file selected</string>
+    <string name="soundfont_section">Soundfont</string>
+    <string name="soundfont_default">Default (FluidR3 GM)</string>
+    <string name="soundfont_custom">Custom soundfont</string>
+    <string name="load_custom_soundfont">Load custom soundfont</string>
+    <string name="reset_to_default_soundfont">Reset to default</string>
+    <string name="downloading_default_soundfont">Downloading default soundfont (%1$d%%)</string>
+    <string name="soundfont_load_failed">Couldn\'t load that soundfont</string>
 </resources>
