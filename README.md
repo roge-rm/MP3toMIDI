@@ -34,6 +34,9 @@ on-device; nothing is uploaded anywhere.
   export ships bundled in the APK. Every conversion after the first needs no network at all.
 - Conversion runs as a foreground `WorkManager` job so it survives the app being backgrounded,
   with a **cancel button** (with confirmation) that stops the job and cleans up its temp files.
+- **In-app MIDI playback** with real soundfont (SF2) synthesis — load any `.mid` file (not just
+  ones this app produced) and hear it through a bundled-quality default soundfont, or load your
+  own GM-compatible `.sf2`. Lets you A/B a conversion's output by ear, not just as data.
 
 ## Requirements
 
@@ -49,7 +52,10 @@ on-device; nothing is uploaded anywhere.
   session settings are tuned to keep peak memory around ~750MB, but it's still real on-device
   neural network inference, not a lightweight operation.
 - An internet connection the *first* time you run a conversion, to download the Demucs (~235MB)
-  and YAMNet (~16MB) models. Not needed again after that.
+  and YAMNet (~16MB) models. Not needed again after that. The MIDI playback screen has its own
+  first-use download too: the default soundfont (~148MB).
+- The NDK and CMake (4.1.2), for the native audio engine behind MIDI playback — Android Studio
+  will prompt to install these if missing.
 
 ## Building & testing
 
@@ -86,10 +92,21 @@ then `./gradlew assembleRelease`.
   - `TempoDetector` — global BPM estimate from the drum onset envelope.
   - `TimbreClassifier` (YAMNet) + `NoteEnvelopeClassifier` + `DemucsSourceClassifier` — the
     three-tier fallback chain that picks a GM program for each stem.
-- `midi/` — `MidiFileWriter`, a from-scratch Standard MIDI File (Type 0) writer.
+- `midi/` — `MidiFileWriter`, a from-scratch Standard MIDI File (Type 0) writer, and
+  `MidiFileParser`, which reads one back (general format 0/1, multiple tempo changes) into a
+  flat, time-sorted event list for playback.
+- `player/` — `Mp3Player` (source-audio preview) and `MidiPlayer` (sequences a parsed MIDI file
+  against `SoundEngine` in real time: per-channel program state, seeking, pause).
+- `audio/` + `cpp/` — `SoundEngine`/`NativeSoundEngine` (Kotlin) and a native Oboe + TinySoundFont
+  engine (`native_sound_engine.cpp`, ported from the sibling
+  [ScaleInKey](https://github.com/roge-rm/ScaleInKey) project) for real-time SF2 synthesis, with a
+  lock-free command queue so note-on/off requests from Kotlin never race with rendering on the
+  audio callback thread.
 - `util/` — `AudioDecoder` (generic `MediaExtractor`/`MediaCodec` decoding to PCM),
-  `ModelProvider` (checksum-verified on-demand model downloads), `PcmUtils`.
-- `ui/` — Jetpack Compose screens (`MainScreen`, `MainViewModel`) and the app's theme.
+  `ModelProvider` (checksum-verified on-demand downloads, used for the Demucs/YAMNet models and
+  the default soundfont alike), `PcmUtils`.
+- `ui/` — Jetpack Compose screens (`MainScreen`, `PlayScreen`, `MainViewModel`) and the app's
+  theme. A header toggle (see `AppScreen`/`AppHeader`) switches between the two screens.
 - `tools/` — standalone Python scripts (not part of the Android build) that export and verify
   each ONNX model against its real upstream implementation; see each subfolder's own README for
   exactly how and why.
@@ -110,6 +127,13 @@ This app wouldn't exist without the following open-source models and libraries:
   `tools/yamnet_export/README.md`.
 - **[ONNX Runtime Mobile](https://onnxruntime.ai/)** — Microsoft, MIT License. Runs all three
   models on-device.
+- **[FluidR3 GM](https://member.keymusician.com/Member/FluidR3_GM/)** soundfont — Frank Wen, MIT
+  License. The default soundfont for in-app MIDI playback; downloaded on first use (see
+  `SoundEngine.kt`).
+- **[TinySoundFont](https://github.com/schellingb/TinySoundFont)** — Bernhard Schelling, MIT
+  License. Vendored directly (`app/src/main/cpp/tsf.h`) for real-time SF2 synthesis.
+- **[Oboe](https://github.com/google/oboe)** — Google, Apache License 2.0. Low-latency native
+  audio output for MIDI playback.
 - Jetpack Compose, WorkManager, Media3, and the rest of the AndroidX/Kotlin ecosystem.
 
 ## License
