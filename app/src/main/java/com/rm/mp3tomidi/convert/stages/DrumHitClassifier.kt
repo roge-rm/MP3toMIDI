@@ -39,6 +39,11 @@ import kotlin.math.min
  * once and produces a genre-plausible, non-degenerate split on all three real songs (e.g. ~95%
  * closed on a steady rock hi-hat pattern vs. a more even mix on a sparser electronic track),
  * instead of the same uniform all-or-nothing answer regardless of what's actually playing.
+ *
+ * [Voice.CRASH_OR_OPEN_HI_HAT]'s GM mapping was itself a real bug, reported by a user listening
+ * to real converted output ("way too many audible crashes... instead of open hats and closed
+ * hats I am hearing closed hats and crashes"). It originally mapped to GM 49 (Crash Cymbal 1) --
+ * see that enum entry's doc for why open hi-hat (46) is the right default instead.
  */
 object DrumHitClassifier {
 
@@ -46,7 +51,15 @@ object DrumHitClassifier {
         KICK(36),
         SNARE(38),
         CLOSED_HI_HAT(42),
-        CRASH_OR_OPEN_HI_HAT(49),
+        // Genuinely ambiguous from decay shape alone (see class doc) between two GM voices that
+        // sound very different: a true crash is a rare accent hit, while an open hi-hat is a
+        // routine, frequent part of most grooves. Mapped to open hi-hat (46), not crash (49) --
+        // measured on a real song (Kraak & Smaak "I Don't Know Why"): this bucket fired on 22% of
+        // *all* drum hits, an implausible rate for genuine crashes but an ordinary one for open
+        // hi-hats. Defaulting to crash instead (the original mapping) made every one of those
+        // audible as a crash cymbal, confirmed as a real user-reported bug ("way too many audible
+        // crashes... instead of open hats and closed hats I am hearing closed hats and crashes").
+        CRASH_OR_OPEN_HI_HAT(46),
     }
 
     private const val LOW_CUTOFF_HZ = 150f
