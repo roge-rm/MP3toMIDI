@@ -38,7 +38,18 @@ class ConversionWorker(
         return try {
             val pipeline = ConversionPipeline()
             val result = pipeline.convert(applicationContext, inputUri, { isStopped }) { stage, fraction ->
-                setProgress(workDataOf(KEY_PROGRESS_STAGE to stage, KEY_PROGRESS_FRACTION to fraction))
+                // Echoing these back isn't needed by this worker itself -- it's how MainViewModel
+                // restores the SOURCE/DESTINATION display after reconnecting to a still-running
+                // conversion post process-death, since WorkInfo doesn't expose the original input
+                // Data it was enqueued with, only progress/output Data set from inside doWork().
+                setProgress(
+                    workDataOf(
+                        KEY_PROGRESS_STAGE to stage,
+                        KEY_PROGRESS_FRACTION to fraction,
+                        KEY_INPUT_URI to inputUri.toString(),
+                        KEY_OUTPUT_URI to outputUri.toString(),
+                    ),
+                )
                 setForeground(foregroundInfo(stage, (fraction * 100).toInt()))
             }
 
