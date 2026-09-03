@@ -15,9 +15,11 @@ import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
+import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.flatMapLatest
 import kotlinx.coroutines.flow.flowOf
 import kotlinx.coroutines.flow.stateIn
+import kotlinx.coroutines.launch
 
 class MainViewModel(application: Application) : AndroidViewModel(application) {
 
@@ -53,6 +55,20 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
     val workInfo: StateFlow<WorkInfo?> = _workId
         .flatMapLatest { id -> if (id == null) flowOf(null) else workManager.getWorkInfoByIdFlow(id) }
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), null)
+
+    init {
+        // _workId only ever gets set by startConversion() below, which means a *fresh* ViewModel
+        // (e.g. after the system killed the Activity/process while a conversion ran in the
+        // background, and the user tapped the ongoing-conversion notification to come back) has
+        // no way to know one is already running -- WorkManager itself keeps tracking the work
+        // regardless, but this ViewModel's own _workId has no memory of it. Reconnect by tag
+        // (see ConversionWorker.WORK_TAG) instead of relying on ever having seen the UUID before.
+        viewModelScope.launch {
+            val existing = workManager.getWorkInfosByTagFlow(ConversionWorker.WORK_TAG).first()
+                .firstOrNull { !it.state.isFinished }
+            if (existing != null) _workId.value = existing.id
+        }
+    }
 
     fun setInputUri(uri: Uri) {
         _inputUri.value = uri
