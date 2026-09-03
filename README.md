@@ -7,7 +7,7 @@ real source-separation model, then runs pitch/onset detection independently on e
 output MIDI has one track per instrument instead of one smeared-together mess. Everything runs
 on-device; nothing is uploaded anywhere.
 
-<img src="docs/screenshot-main.png" alt="MP3toMIDI main screen: a source MP3 and output filename selected, ready to convert" width="360" />
+<img src="docs/screenshot-main.png" alt="MP3toMIDI main screen: a source MP3 and output filename selected, ready to convert" width="360" /> <img src="docs/screenshot-play.png" alt="MP3toMIDI's MIDI playback screen: a converted file playing back through the default soundfont" width="360" />
 
 ## Features
 
