@@ -66,7 +66,17 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
         viewModelScope.launch {
             val existing = workManager.getWorkInfosByTagFlow(ConversionWorker.WORK_TAG).first()
                 .firstOrNull { !it.state.isFinished }
-            if (existing != null) _workId.value = existing.id
+            if (existing != null) {
+                _workId.value = existing.id
+                // WorkInfo doesn't expose the original input Data the work was enqueued with, only
+                // progress/output Data set from inside doWork() -- ConversionWorker echoes the
+                // URIs back through setProgress() specifically so this can restore the
+                // SOURCE/DESTINATION display, not just the progress bar. Can be empty if reconnect
+                // happens before the worker's first progress update; the fields just stay unset in
+                // that narrow window, same as before this existed.
+                existing.progress.getString(ConversionWorker.KEY_INPUT_URI)?.let { _inputUri.value = Uri.parse(it) }
+                existing.progress.getString(ConversionWorker.KEY_OUTPUT_URI)?.let { _outputUri.value = Uri.parse(it) }
+            }
         }
     }
 
