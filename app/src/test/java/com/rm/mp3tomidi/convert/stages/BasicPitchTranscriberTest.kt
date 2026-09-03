@@ -48,17 +48,23 @@ class BasicPitchTranscriberTest {
     }
 
     @Test
-    fun `merges a whole run of fragmented same-pitch notes into one, taking the loudest amplitude`() {
+    fun `caps a merge chain at 2 originals instead of collapsing a long run into one note`() {
+        // A real fast repeated-pitch passage (tremolo, arpeggio) produces this exact same
+        // near-zero-gap signature as genuine single-note fragmentation -- see this class's doc.
+        // Without a cap, this whole run collapses into one implausible note.
         val notes = listOf(
             note(0, 10, 60, 0.3f),
             note(12, 22, 60, 0.9f),
             note(24, 34, 60, 0.4f),
+            note(36, 46, 60, 0.6f),
         )
 
-        val merged = transcriber.mergeRepeatedNotes(notes)
+        val merged = transcriber.mergeRepeatedNotes(notes).sortedBy { it.startFrame }
 
-        assertEquals(1, merged.size)
-        assertEquals(note(0, 34, 60, 0.9f), merged.single())
+        assertEquals(
+            listOf(note(0, 22, 60, 0.9f), note(24, 46, 60, 0.6f)),
+            merged,
+        )
     }
 
     @Test

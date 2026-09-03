@@ -34,6 +34,12 @@ import kotlin.math.roundToLong
  * decoder nor the melodia trick (see BasicPitchNoteDecoder's doc) fixes this -- melodia trick only
  * adds notes from energy the onset loop never claimed at all, it never revisits notes the onset
  * loop already created.
+ *
+ * Found later, on a different real song (see [mergeRepeatedNotes]'s doc): the same near-zero-gap
+ * signature this targets is also produced by a genuine fast repeated-pitch passage (tremolo,
+ * arpeggio, a plucked synth line), and there's no reliable signal-based way to tell the two apart
+ * from the decoded notes -- so the merge chain is capped rather than unbounded, to bound how badly
+ * a real repeated-note passage can get mangled while still fixing the common short-run case.
  */
 class BasicPitchTranscriber : NoteTranscriber {
 
@@ -140,6 +146,19 @@ class BasicPitchTranscriber : NoteTranscriber {
      * energy-tolerance grace period: this targets only near-immediate re-triggers of what's
      * almost certainly the same held tone, not a genuine short rest between two separately
      * played notes at the same pitch.
+     *
+     * [MAX_MERGE_CHAIN] caps how many original notes a single merge can combine (2, i.e. at most
+     * one merge per resulting note, no further chaining). Found on real songs (see this class's
+     * doc): a small-gap same-pitch run isn't always a single sustained tone the onset loop
+     * fragmented -- a genuine fast repeated-pitch passage (tremolo, arpeggio, a plucked synth
+     * line, common in electronic music) produces the identical near-zero-gap signature, and
+     * there's no reliable way to tell the two apart from the decoded notes alone (tried both the
+     * decoder's own frame-activation matrix and the separated stem's raw audio RMS envelope --
+     * neither cleanly discriminates real reattacks from a spurious re-onset on real test songs).
+     * Confirmed via the real upstream reference decoder run directly on isolated stems: without
+     * this cap, a genuine ~12-note tremolo run got glued into one fake 7.5s note. Capping the
+     * chain bounds the damage -- a real multi-fragment split still gets one pass of fixing, while
+     * a long repeated-note passage becomes several short merges instead of a single absurd one.
      */
     internal fun mergeRepeatedNotes(notes: List<BasicPitchNoteDecoder.RawNote>): List<BasicPitchNoteDecoder.RawNote> {
         return notes
@@ -147,19 +166,19 @@ class BasicPitchTranscriber : NoteTranscriber {
             .values
             .flatMap { pitchNotes ->
                 val sorted = pitchNotes.sortedBy { it.startFrame }
-                val merged = mutableListOf(sorted.first())
+                val merged = mutableListOf(sorted.first() to 1)
                 for (next in sorted.drop(1)) {
-                    val current = merged.last()
-                    if (next.startFrame - current.endFrame <= MERGE_GAP_FRAMES) {
+                    val (current, mergedCount) = merged.last()
+                    if (mergedCount < MAX_MERGE_CHAIN && next.startFrame - current.endFrame <= MERGE_GAP_FRAMES) {
                         merged[merged.lastIndex] = current.copy(
                             endFrame = max(current.endFrame, next.endFrame),
                             amplitude = max(current.amplitude, next.amplitude),
-                        )
+                        ) to (mergedCount + 1)
                     } else {
-                        merged += next
+                        merged += next to 1
                     }
                 }
-                merged
+                merged.map { it.first }
             }
     }
 
@@ -167,6 +186,7 @@ class BasicPitchTranscriber : NoteTranscriber {
         private const val ASSET_PATH = "models/basic_pitch_icassp_2022.onnx"
         private const val INPUT_NAME = "serving_default_input_2:0"
         private const val MERGE_GAP_FRAMES = 5
+        private const val MAX_MERGE_CHAIN = 2
         private const val ONSET_OUTPUT_NAME = "StatefulPartitionedCall:2"
         private const val NOTE_OUTPUT_NAME = "StatefulPartitionedCall:1"
 
