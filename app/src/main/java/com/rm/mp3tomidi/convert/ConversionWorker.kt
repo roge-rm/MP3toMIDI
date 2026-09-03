@@ -106,6 +106,12 @@ class ConversionWorker(
         private const val CHANNEL_ID = "conversion"
         private const val NOTIFICATION_ID = 1
 
+        // Lets MainViewModel find a still-running conversion by tag on a fresh ViewModel instance
+        // (e.g. after the system killed the Activity/process while backgrounded and the user taps
+        // back in via the notification) -- it has no other way to recover the work's UUID, since
+        // that was only ever held in the previous, now-gone ViewModel's in-memory state.
+        const val WORK_TAG = "conversion_work"
+
         fun buildRequest(inputUri: Uri, outputUri: Uri): OneTimeWorkRequest {
             val data = Data.Builder()
                 .putString(KEY_INPUT_URI, inputUri.toString())
@@ -113,6 +119,7 @@ class ConversionWorker(
                 .build()
             return OneTimeWorkRequestBuilder<ConversionWorker>()
                 .setInputData(data)
+                .addTag(WORK_TAG)
                 .build()
         }
     }
