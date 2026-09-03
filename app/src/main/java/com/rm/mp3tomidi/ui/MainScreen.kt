@@ -20,7 +20,6 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.navigationBars
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
-import androidx.compose.foundation.layout.statusBars
 import androidx.compose.foundation.layout.windowInsetsPadding
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
@@ -56,7 +55,6 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
-import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalView
@@ -73,15 +71,9 @@ import com.rm.mp3tomidi.convert.ConversionWorker
 import com.rm.mp3tomidi.ui.theme.BrandNavy
 import com.rm.mp3tomidi.ui.theme.BrandPink
 import com.rm.mp3tomidi.ui.theme.BrandTeal
-import com.rm.mp3tomidi.ui.theme.BrandYellow
 import com.rm.mp3tomidi.ui.theme.DangerRed
 import com.rm.mp3tomidi.ui.theme.OutlineLavender
 import com.rm.mp3tomidi.util.displayNameOf
-
-// Teal and pink are near-complementary, so a plain 2-stop gradient between them interpolates
-// through a muddy gray midpoint in RGB space -- routing through yellow (which is also literally
-// the app icon's 3-color order, top to bottom) keeps it vivid the whole way across instead.
-private val HeaderGradient = Brush.horizontalGradient(listOf(BrandTeal, BrandYellow, BrandPink))
 
 // Explicit list rather than the "audio/*" wildcard -- that wildcard also matches audio/midi, and
 // a .mid file picked as input doesn't fail cleanly: Android's built-in MIDI softsynth renders it
@@ -101,7 +93,7 @@ private val SUPPORTED_INPUT_MIME_TYPES = arrayOf(
 )
 
 @Composable
-fun MainScreen(viewModel: MainViewModel) {
+fun MainScreen(viewModel: MainViewModel, onSwitchScreen: () -> Unit) {
     val context = LocalContext.current
     val inputUri by viewModel.inputUri.collectAsState()
     val outputUri by viewModel.outputUri.collectAsState()
@@ -161,7 +153,11 @@ fun MainScreen(viewModel: MainViewModel) {
                 .padding(padding)
                 .verticalScroll(rememberScrollState()),
         ) {
-            AppHeader()
+            AppHeader(
+                onSwitchScreen = onSwitchScreen,
+                switchIcon = "♪", // musical note -- "go listen to a MIDI file"
+                switchContentDescription = stringResource(R.string.switch_to_play_screen),
+            )
 
             Column(
                 modifier = Modifier
@@ -294,26 +290,7 @@ fun MainScreen(viewModel: MainViewModel) {
 }
 
 @Composable
-private fun AppHeader() {
-    Box(
-        modifier = Modifier
-            .fillMaxWidth()
-            .clip(RoundedCornerShape(bottomStart = 32.dp, bottomEnd = 32.dp))
-            .background(HeaderGradient)
-            .windowInsetsPadding(WindowInsets.statusBars)
-            .padding(horizontal = 24.dp, vertical = 28.dp),
-        contentAlignment = Alignment.Center,
-    ) {
-        Text(
-            text = stringResource(R.string.app_name),
-            style = MaterialTheme.typography.headlineMedium,
-            color = Color.White,
-        )
-    }
-}
-
-@Composable
-private fun SectionCard(title: String, content: @Composable ColumnScope.() -> Unit) {
+internal fun SectionCard(title: String, content: @Composable ColumnScope.() -> Unit) {
     Card(
         shape = MaterialTheme.shapes.medium,
         colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
@@ -335,7 +312,7 @@ private fun SectionCard(title: String, content: @Composable ColumnScope.() -> Un
 }
 
 @Composable
-private fun FileNameChip(name: String) {
+internal fun FileNameChip(name: String) {
     Box(
         modifier = Modifier
             .fillMaxWidth()
@@ -354,7 +331,7 @@ private fun FileNameChip(name: String) {
 }
 
 @Composable
-private fun OutlinedActionButton(
+internal fun OutlinedActionButton(
     text: String,
     icon: androidx.compose.ui.graphics.vector.ImageVector,
     enabled: Boolean = true,

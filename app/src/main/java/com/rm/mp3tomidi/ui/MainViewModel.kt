@@ -6,7 +6,9 @@ import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.viewModelScope
 import androidx.work.WorkInfo
 import androidx.work.WorkManager
+import com.rm.mp3tomidi.audio.SoundEngine
 import com.rm.mp3tomidi.convert.ConversionWorker
+import com.rm.mp3tomidi.player.MidiPlayer
 import com.rm.mp3tomidi.player.Mp3Player
 import java.util.UUID
 import kotlinx.coroutines.ExperimentalCoroutinesApi
@@ -20,6 +22,8 @@ import kotlinx.coroutines.flow.stateIn
 class MainViewModel(application: Application) : AndroidViewModel(application) {
 
     val player = Mp3Player(application)
+    val soundEngine = SoundEngine(application)
+    val midiPlayer = MidiPlayer(soundEngine)
 
     private val workManager = WorkManager.getInstance(application)
 
@@ -28,6 +32,20 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
 
     private val _outputUri = MutableStateFlow<Uri?>(null)
     val outputUri: StateFlow<Uri?> = _outputUri
+
+    // Owned here rather than as PlayScreen-local remember state, same reasoning as inputUri/
+    // outputUri above: PlayScreen's composable is fully torn down and recreated every time the
+    // header toggle switches away and back (MainActivity's `when (screen)` swaps to a completely
+    // different composable, it doesn't just hide this one) -- verified on-device that local
+    // remember state loses the selected file on a screen switch, while midiPlayer's own
+    // ViewModel-owned position/duration survive it, an inconsistency a user would notice
+    // immediately as "my file disappeared but playback position didn't".
+    private val _midiUri = MutableStateFlow<Uri?>(null)
+    val midiUri: StateFlow<Uri?> = _midiUri
+
+    fun setMidiUri(uri: Uri) {
+        _midiUri.value = uri
+    }
 
     private val _workId = MutableStateFlow<UUID?>(null)
 
@@ -72,5 +90,7 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
 
     override fun onCleared() {
         player.release()
+        midiPlayer.release()
+        soundEngine.release()
     }
 }

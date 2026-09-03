@@ -29,6 +29,15 @@ android {
         versionName = "0.1.0"
 
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
+
+        externalNativeBuild {
+            cmake {
+                cppFlags += "-std=c++17"
+                // Oboe's prebuilt (Prefab) library requires the shared STL, not AGP's
+                // default static one.
+                arguments += "-DANDROID_STL=c++_shared"
+            }
+        }
     }
 
     signingConfigs {
@@ -59,6 +68,14 @@ android {
 
     buildFeatures {
         compose = true
+        prefab = true
+    }
+
+    externalNativeBuild {
+        cmake {
+            path = file("src/main/cpp/CMakeLists.txt")
+            version = "4.1.2"
+        }
     }
 }
 
@@ -83,6 +100,7 @@ dependencies {
     implementation(libs.androidx.media3.exoplayer)
     implementation(libs.androidx.media3.common)
     implementation(libs.onnxruntime.android)
+    implementation(libs.oboe)
 
     testImplementation(libs.junit)
     androidTestImplementation(libs.androidx.espresso.core)

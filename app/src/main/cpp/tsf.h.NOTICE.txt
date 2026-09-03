@@ -1,0 +1,6 @@
+tsf.h — TinySoundFont, https://github.com/schellingb/TinySoundFont
+Copyright (C) 2017-2025 Bernhard Schelling. MIT License (full text at the top of tsf.h).
+
+Vendored directly (not via a wrapper library) so this app's native audio engine can call it
+straight from C++ inside an Oboe audio callback, with its own thread-safety handling around
+note-on/off vs. render (see native_sound_engine.cpp's top comment for why that matters).
