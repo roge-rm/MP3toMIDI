@@ -40,6 +40,23 @@ import kotlin.math.roundToLong
  * arpeggio, a plucked synth line), and there's no reliable signal-based way to tell the two apart
  * from the decoded notes -- so the merge chain is capped rather than unbounded, to bound how badly
  * a real repeated-note passage can get mangled while still fixing the common short-run case.
+ *
+ * **Velocity is derived from real audio loudness, not `RawNote.amplitude`** (fixed after a user
+ * reported inconsistent track volumes): `amplitude` is Basic Pitch's own note-activation
+ * confidence score, not a loudness measurement, and it doesn't behave like one -- measured on 5
+ * real songs, its correlation with the note's actual audio RMS ranged from -0.24 to 0.82 (mostly
+ * weak or nonexistent), and every stem's velocity distribution looked similar (~55-71 average)
+ * regardless of the stem's real loudness, which spanned a >400x range (a near-silent noise-floor
+ * "piano" stem got velocities in the same range as the loudest stem in the mix). Fixed the same
+ * way [DrumTranscriber] already computes drum velocity: each note's peak amplitude over its own span,
+ * relative to its stem's peak amplitude (see [velocityFor] -- an *earlier* version of this fix
+ * used RMS-of-note-span instead, and that was itself a real, verified-on-device bug: RMS averages
+ * energy over time while peak is a single instantaneous extreme, and a whole track's peak sample
+ * is typically 5-10x even a genuinely loud one-second span's RMS -- comparing the two crushed
+ * nearly every note down near the velocity floor regardless of real loudness, the exact same
+ * *shape* of bug this change was supposed to fix, just introduced fresh). See
+ * [com.rm.mp3tomidi.convert.ConversionPipeline] for the further cross-stem balancing this alone
+ * doesn't address (a stem-relative velocity is still only correct *within* that one stem).
  */
 class BasicPitchTranscriber : NoteTranscriber {
 
@@ -69,17 +86,34 @@ class BasicPitchTranscriber : NoteTranscriber {
 
         val rawNotes = mergeRepeatedNotes(BasicPitchNoteDecoder.decode(frames, onsets))
         val times = BasicPitchNoteDecoder.modelFramesToTime(totalFrames)
+        val peakAmplitude = AudioFilters.peak(monoAudio).coerceAtLeast(MIN_AMPLITUDE)
 
         return rawNotes.map { note ->
             val startSeconds = times.getOrElse(note.startFrame) { times.lastOrNull() ?: 0.0 }
             val endSeconds = times.getOrElse(min(note.endFrame, times.size - 1)) { times.lastOrNull() ?: 0.0 }
+            val startSample = (startSeconds * SAMPLE_RATE).roundToInt().coerceIn(0, monoAudio.size)
+            val endSample = (endSeconds * SAMPLE_RATE).roundToInt().coerceIn(startSample, monoAudio.size)
             NoteEvent(
                 startTick = secondsToTicks(startSeconds, bpm),
                 endTick = secondsToTicks(endSeconds, bpm),
                 pitch = note.pitch,
-                velocity = (note.amplitude * 127f).roundToInt().coerceIn(1, 127),
+                velocity = velocityFor(monoAudio, startSample, endSample, peakAmplitude),
             )
         }
+    }
+
+    /**
+     * Peak amplitude of the real audio over one note's span, relative to its stem's peak -- same
+     * peak-to-peak comparison [DrumTranscriber] uses, and deliberately not RMS-of-note-vs-peak-
+     * of-stem: those are different statistics (RMS averages energy over time, peak is a single
+     * instantaneous extreme), and mixing them was a real bug found on real audio -- a whole
+     * track's peak sample is typically 5-10x even a genuinely loud one-second span's RMS, which
+     * crushed nearly every note's velocity down near the floor regardless of how loud it actually
+     * was.
+     */
+    internal fun velocityFor(monoAudio: FloatArray, startSample: Int, endSample: Int, peakAmplitude: Float): Int {
+        val noteLoudness = AudioFilters.peak(monoAudio, startSample, endSample)
+        return (127f * (noteLoudness / peakAmplitude)).roundToInt().coerceIn(MIN_VELOCITY, 127)
     }
 
     private fun loadAsMono22050(stem: RawStem): FloatArray {
@@ -189,6 +223,11 @@ class BasicPitchTranscriber : NoteTranscriber {
         private const val MAX_MERGE_CHAIN = 2
         private const val ONSET_OUTPUT_NAME = "StatefulPartitionedCall:2"
         private const val NOTE_OUTPUT_NAME = "StatefulPartitionedCall:1"
+
+        // Same floor DrumTranscriber uses, for the same reason: a note near the bottom of its
+        // stem's dynamic range should still be audible, not effectively silent.
+        private const val MIN_VELOCITY = 40
+        private const val MIN_AMPLITUDE = 1e-6f
 
         private const val SAMPLE_RATE = 22050
         private const val FFT_HOP = 256

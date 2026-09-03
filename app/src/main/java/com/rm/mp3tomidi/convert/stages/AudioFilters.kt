@@ -30,6 +30,15 @@ object AudioFilters {
         return sqrt(sum / (toIndex - fromIndex)).toFloat()
     }
 
+    fun peak(x: FloatArray, fromIndex: Int = 0, toIndex: Int = x.size): Float {
+        var max = 0f
+        for (i in fromIndex until toIndex) {
+            val v = if (x[i] < 0f) -x[i] else x[i]
+            if (v > max) max = v
+        }
+        return max
+    }
+
     fun zeroCrossingRate(x: FloatArray): Float {
         if (x.size < 2) return 0f
         var crossings = 0
