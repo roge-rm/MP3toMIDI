@@ -1,11 +1,15 @@
 # MP3toMIDI
 
-An Android (8.1 or higher) app that converts a song into a Standard MIDI File you can drop
-straight into a DAW. It doesn't just track the overall pitch of the mix — it splits the song
-into six separate instrument stems (drums, bass, vocals, guitar, piano, everything else) with a
-real source-separation model, then runs pitch/onset detection independently on each stem, so the
-output MIDI has one track per instrument instead of one smeared-together mess. Everything runs
-on-device; nothing is uploaded anywhere.
+MP3toMIDI is a "proof of concept" idea I had where I wondered whether I could automate splitting stems from a real song and turning that into a decent MIDI file.
+So far the results are.. interesting, but nowhere near good. The files tend to be too busy to be enjoyable but the original song is usually recognizable.
+
+The way it works now is the song is split into 6 stems using Demucs and then those stems are shoved through a pitch transcriptor/drum hit idenitifier - this is then fed into a MIDI parser and a baby is made!
+
+This baby runs locally on your device (Android 8.1+) after downloading a few models and a stock soundfont. Conversions take many minutes (10+) on a midrange device and could be more on something worse. 
+You can use it as is if you like but you have been warned. 
+(Under Construction GIF here)
+
+Cheers
 
 <img src="docs/screenshot-main.png" alt="MP3toMIDI main screen: a source MP3 and output filename selected, ready to convert" width="360" /> <img src="docs/screenshot-play.png" alt="MP3toMIDI's MIDI playback screen: a converted file playing back through the default soundfont" width="360" />
 
