@@ -6,6 +6,8 @@ import android.util.Log
 import com.rm.mp3tomidi.audio.SoundEngine
 import com.rm.mp3tomidi.midi.MidiFileParser
 import com.rm.mp3tomidi.midi.TimedEvent
+import com.rm.mp3tomidi.playback.PlaybackNotificationService
+import com.rm.mp3tomidi.util.displayNameOf
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
@@ -28,10 +30,11 @@ import kotlinx.coroutines.withContext
  * never compounds), simplified for the fact the whole event list already lives in memory: no
  * incremental per-track "priming" is needed, just a single cursor into one flat, pre-sorted list.
  */
-class MidiPlayer(private val soundEngine: SoundEngine) {
+class MidiPlayer(private val soundEngine: SoundEngine) : PlaybackSource {
 
     private val scope = CoroutineScope(SupervisorJob() + Dispatchers.Default)
     private var playbackJob: Job? = null
+    private var appContext: Context? = null // stashed at load() time, only to announce ourselves to PlaybackNotificationService
 
     private var events: List<TimedEvent> = emptyList()
     private val channelProgram = IntArray(16) // GM default: program 0 (Acoustic Grand Piano) until a Program Change says otherwise
@@ -46,7 +49,12 @@ class MidiPlayer(private val soundEngine: SoundEngine) {
     private val _durationMs = MutableStateFlow(0L)
     val durationMs: StateFlow<Long> = _durationMs
 
+    override var title: String = "MIDI file"
+        private set
+    override val isPlayingFlow: StateFlow<Boolean> get() = _isPlaying
+
     suspend fun load(context: Context, uri: Uri): Boolean = withContext(Dispatchers.IO) {
+        appContext = context.applicationContext
         playbackJob?.cancel()
         silenceAll()
         try {
@@ -54,6 +62,7 @@ class MidiPlayer(private val soundEngine: SoundEngine) {
                 ?: return@withContext false
             val parsed = MidiFileParser.parse(bytes)
             events = parsed.events
+            title = displayNameOf(context, uri) ?: "MIDI file"
             channelProgram.fill(0)
             cursor = 0
             positionAtStartMs = 0
@@ -68,10 +77,31 @@ class MidiPlayer(private val soundEngine: SoundEngine) {
     }
 
     fun togglePlayback() {
-        if (_isPlaying.value) pauseInternal() else startPlaybackLoop()
+        if (_isPlaying.value) pause() else play()
     }
 
-    fun seekTo(targetMs: Long) {
+    override fun play() {
+        startPlaybackLoop()
+        announceActive()
+    }
+
+    override fun pause() {
+        pauseInternal()
+        announceActive()
+    }
+
+    // Re-announcing (idempotent if we're already the active source) is what actually triggers
+    // PlaybackFacadePlayer.invalidateState() -- without it, the notification would keep showing
+    // whatever isPlaying/position was true the last time something else announced us, not the
+    // real current state.
+    private fun announceActive() {
+        appContext?.let { PlaybackNotificationService.setActiveSource(it, this) }
+    }
+
+    override fun positionMs(): Long = _positionMs.value
+    override fun durationMs(): Long = _durationMs.value
+
+    override fun seekTo(targetMs: Long) {
         if (events.isEmpty()) return
         silenceAll()
 
@@ -94,6 +124,7 @@ class MidiPlayer(private val soundEngine: SoundEngine) {
         _positionMs.value = positionAtStartMs
 
         if (_isPlaying.value) startPlaybackLoop() // re-anchor timing at the new position, keep playing
+        announceActive() // refresh the notification's position even when paused, where nothing else would
     }
 
     private fun startPlaybackLoop() {
@@ -110,6 +141,7 @@ class MidiPlayer(private val soundEngine: SoundEngine) {
                     _positionMs.value = _durationMs.value
                     positionAtStartMs = 0
                     cursor = 0 // ready to play from the start again next time
+                    announceActive()
                     break
                 }
 
