@@ -50,7 +50,13 @@ class TimbreClassifier(
 
         val match = YamnetGmMapping.pickBestMatch(meanScores, CONFIDENCE_THRESHOLD)
         if (match != null && !match.isGenericSynth) {
-            return Stem(label = stem.label, gmProgram = match.gmProgram, isDrumKit = match.isDrumKit, notes = notes)
+            return Stem(
+                label = stem.label,
+                gmProgram = match.gmProgram,
+                isDrumKit = match.isDrumKit,
+                notes = notes,
+                confidence = match.score,
+            )
         }
 
         // Envelope-based synth-role inference doesn't make sense for vocals -- a voice is never a

@@ -26,10 +26,22 @@ data class RawStem(
     val channelCount: Int,
 )
 
-/** A fully processed stem: identified instrument + its transcribed notes, ready for MIDI assembly. */
+/**
+ * A fully processed stem: identified instrument + its transcribed notes, ready for MIDI assembly.
+ *
+ * [confidence] is the classifier's real confidence in [gmProgram] when it has one (e.g. YAMNet's
+ * match score), or [NO_CONFIDENCE] when the program came from [DemucsSourceClassifier]'s fixed
+ * per-label lookup instead of real classification -- a review UI should render that case as
+ * "Default", not as a (misleadingly low) percentage.
+ */
 data class Stem(
     val label: String,
     val gmProgram: Int,
     val isDrumKit: Boolean,
     val notes: List<NoteEvent>,
-)
+    val confidence: Float = NO_CONFIDENCE,
+) {
+    companion object {
+        const val NO_CONFIDENCE = -1f
+    }
+}

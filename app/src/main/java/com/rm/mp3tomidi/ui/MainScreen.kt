@@ -33,6 +33,7 @@ import androidx.compose.material.icons.filled.LibraryMusic
 import androidx.compose.material.icons.filled.Pause
 import androidx.compose.material.icons.filled.PlayArrow
 import androidx.compose.material.icons.filled.Piano
+import androidx.compose.material.icons.filled.Tune
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
@@ -46,6 +47,7 @@ import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
@@ -67,7 +69,9 @@ import androidx.compose.ui.unit.dp
 import androidx.core.content.ContextCompat
 import androidx.work.WorkInfo
 import com.rm.mp3tomidi.R
-import com.rm.mp3tomidi.convert.ConversionWorker
+import com.rm.mp3tomidi.convert.AnalysisWorker
+import com.rm.mp3tomidi.convert.OutputMode
+import com.rm.mp3tomidi.convert.WriteWorker
 import com.rm.mp3tomidi.ui.theme.BrandNavy
 import com.rm.mp3tomidi.ui.theme.BrandPink
 import com.rm.mp3tomidi.ui.theme.BrandTeal
@@ -97,12 +101,26 @@ fun MainScreen(viewModel: MainViewModel, onSwitchScreen: () -> Unit) {
     val context = LocalContext.current
     val inputUri by viewModel.inputUri.collectAsState()
     val outputUri by viewModel.outputUri.collectAsState()
-    val workInfo by viewModel.workInfo.collectAsState()
+    val outputDirUri by viewModel.outputDirUri.collectAsState()
+    val conversionOptions by viewModel.conversionOptions.collectAsState()
+    val analysisWorkInfo by viewModel.analysisWorkInfo.collectAsState()
+    val writeWorkInfo by viewModel.writeWorkInfo.collectAsState()
+    val reviewPending by viewModel.reviewPending.collectAsState()
+    val intermediateResult by viewModel.intermediateResult.collectAsState()
     val isPlaying by viewModel.player.isPlaying.collectAsState()
 
     var outputFileName by rememberSaveable { mutableStateOf("output.mid") }
     val inputFileName = remember(inputUri) { inputUri?.let { displayNameOf(context, it) } }
     var showCancelConfirmation by remember { mutableStateOf(false) }
+    var showOptionsDialog by remember { mutableStateOf(false) }
+
+    LaunchedEffect(reviewPending) {
+        if (reviewPending) {
+            analysisWorkInfo?.outputData?.getString(AnalysisWorker.KEY_INTERMEDIATE_PATH)?.let {
+                viewModel.loadIntermediateResult(it)
+            }
+        }
+    }
 
     // The gradient header sits edge-to-edge behind the status bar (see enableEdgeToEdge in
     // MainActivity), so its icons need to stay light/white rather than following the system's
@@ -149,7 +167,21 @@ fun MainScreen(viewModel: MainViewModel, onSwitchScreen: () -> Unit) {
         }
     }
 
-    val isRunning = workInfo?.state == WorkInfo.State.RUNNING || workInfo?.state == WorkInfo.State.ENQUEUED
+    val outputDirLauncher = rememberLauncherForActivityResult(
+        ActivityResultContracts.OpenDocumentTree(),
+    ) { uri ->
+        if (uri != null) {
+            context.contentResolver.takePersistableUriPermission(
+                uri,
+                Intent.FLAG_GRANT_READ_URI_PERMISSION or Intent.FLAG_GRANT_WRITE_URI_PERMISSION,
+            )
+            viewModel.setOutputDirUri(uri)
+        }
+    }
+
+    fun isActive(info: WorkInfo?) = info?.state == WorkInfo.State.RUNNING || info?.state == WorkInfo.State.ENQUEUED
+    val isRunning = isActive(analysisWorkInfo) || isActive(writeWorkInfo) || reviewPending
+    val hasDestination = if (conversionOptions.outputMode == OutputMode.SEPARATE_FILES) outputDirUri != null else outputUri != null
 
     // Insets are handled by hand below (status bar padding inside AppHeader so the gradient
     // itself still extends behind it, navigation bar padding at the bottom of the scrolling
@@ -196,24 +228,40 @@ fun MainScreen(viewModel: MainViewModel, onSwitchScreen: () -> Unit) {
                 }
 
                 SectionCard(title = "Destination") {
-                    OutlinedTextField(
-                        value = outputFileName,
-                        onValueChange = { outputFileName = it },
-                        label = { Text(stringResource(R.string.output_file_name)) },
-                        singleLine = true,
-                        shape = MaterialTheme.shapes.small,
-                        colors = OutlinedTextFieldDefaults.colors(
-                            focusedBorderColor = BrandNavy,
-                            focusedLabelColor = BrandNavy,
-                        ),
-                        modifier = Modifier.fillMaxWidth(),
-                    )
-                    OutlinedActionButton(
-                        text = stringResource(R.string.choose_output),
-                        icon = Icons.Filled.FileDownload,
-                        onClick = { createOutputLauncher.launch(outputFileName) },
-                    )
+                    if (conversionOptions.outputMode == OutputMode.SEPARATE_FILES) {
+                        OutlinedActionButton(
+                            text = "Choose output folder",
+                            icon = Icons.Filled.FileDownload,
+                            onClick = { outputDirLauncher.launch(null) },
+                        )
+                        FileNameChip(outputDirUri?.let { displayNameOf(context, it) } ?: stringResource(R.string.no_file_selected))
+                    } else {
+                        OutlinedTextField(
+                            value = outputFileName,
+                            onValueChange = { outputFileName = it },
+                            label = { Text(stringResource(R.string.output_file_name)) },
+                            singleLine = true,
+                            shape = MaterialTheme.shapes.small,
+                            colors = OutlinedTextFieldDefaults.colors(
+                                focusedBorderColor = BrandNavy,
+                                focusedLabelColor = BrandNavy,
+                            ),
+                            modifier = Modifier.fillMaxWidth(),
+                        )
+                        OutlinedActionButton(
+                            text = stringResource(R.string.choose_output),
+                            icon = Icons.Filled.FileDownload,
+                            onClick = { createOutputLauncher.launch(outputFileName) },
+                        )
+                    }
                 }
+
+                OutlinedActionButton(
+                    text = "Conversion options",
+                    icon = Icons.Filled.Tune,
+                    enabled = !isRunning,
+                    onClick = { showOptionsDialog = true },
+                )
 
                 if (isRunning) {
                     SolidActionButton(
@@ -226,7 +274,7 @@ fun MainScreen(viewModel: MainViewModel, onSwitchScreen: () -> Unit) {
                     GradientButton(
                         text = stringResource(R.string.convert),
                         icon = Icons.Filled.Piano,
-                        enabled = inputUri != null && outputUri != null,
+                        enabled = inputUri != null && hasDestination,
                         onClick = {
                             if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU &&
                                 ContextCompat.checkSelfPermission(
@@ -236,7 +284,7 @@ fun MainScreen(viewModel: MainViewModel, onSwitchScreen: () -> Unit) {
                             ) {
                                 notificationPermissionLauncher.launch(Manifest.permission.POST_NOTIFICATIONS)
                             }
-                            viewModel.startConversion()
+                            viewModel.startAnalysis()
                         },
                     )
                 }
@@ -262,14 +310,19 @@ fun MainScreen(viewModel: MainViewModel, onSwitchScreen: () -> Unit) {
                     )
                 }
 
-                val progress = workInfo?.progress
-                val stage = progress?.getString(ConversionWorker.KEY_PROGRESS_STAGE)
-                val fraction = progress?.getFloat(ConversionWorker.KEY_PROGRESS_FRACTION, 0f) ?: 0f
+                val analysisProgress = analysisWorkInfo?.progress
+                val writeProgress = writeWorkInfo?.progress
+                val stage = analysisProgress?.getString(AnalysisWorker.KEY_PROGRESS_STAGE)
+                    ?: if (isActive(writeWorkInfo)) "Writing MIDI file" else null
+                val fraction = when {
+                    isActive(writeWorkInfo) -> writeProgress?.getFloat(WriteWorker.KEY_PROGRESS_FRACTION, 0f) ?: 0f
+                    else -> analysisProgress?.getFloat(AnalysisWorker.KEY_PROGRESS_FRACTION, 0f) ?: 0f
+                }
 
-                when (workInfo?.state) {
-                    WorkInfo.State.RUNNING, WorkInfo.State.ENQUEUED -> {
+                when {
+                    isActive(analysisWorkInfo) || isActive(writeWorkInfo) || reviewPending -> {
                         SectionCard(title = "Converting") {
-                            Text(stage ?: "", style = MaterialTheme.typography.bodyLarge)
+                            Text(stage ?: if (reviewPending) "Review detected instruments" else "", style = MaterialTheme.typography.bodyLarge)
                             LinearProgressIndicator(
                                 progress = { fraction },
                                 color = BrandTeal,
@@ -280,12 +333,12 @@ fun MainScreen(viewModel: MainViewModel, onSwitchScreen: () -> Unit) {
                             )
                         }
                     }
-                    WorkInfo.State.SUCCEEDED -> ResultBanner(
+                    writeWorkInfo?.state == WorkInfo.State.SUCCEEDED -> ResultBanner(
                         text = "Conversion complete",
                         icon = Icons.Filled.CheckCircle,
                         color = BrandTeal,
                     )
-                    WorkInfo.State.FAILED -> ResultBanner(
+                    analysisWorkInfo?.state == WorkInfo.State.FAILED || writeWorkInfo?.state == WorkInfo.State.FAILED -> ResultBanner(
                         text = "Conversion failed",
                         icon = Icons.Filled.Error,
                         color = BrandPink,
@@ -293,6 +346,24 @@ fun MainScreen(viewModel: MainViewModel, onSwitchScreen: () -> Unit) {
                     else -> {}
                 }
             }
+        }
+    }
+
+    if (showOptionsDialog) {
+        ConversionOptionsDialog(
+            options = conversionOptions,
+            onOptionsChange = { viewModel.setConversionOptions(it) },
+            onDismiss = { showOptionsDialog = false },
+        )
+    }
+
+    if (reviewPending) {
+        intermediateResult?.let { result ->
+            ReviewDialog(
+                result = result,
+                onConfirm = { selections -> viewModel.startWrite(selections) },
+                onDismiss = { viewModel.cancelReview() },
+            )
         }
     }
 }

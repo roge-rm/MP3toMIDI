@@ -67,6 +67,45 @@ class MidiFileWriterTest {
         assertTrue(programChangeChannels.any { it != MidiConstants.DRUM_CHANNEL })
     }
 
+    @Test
+    fun `format 1 writes one tempo track plus one track per stem`() {
+        val stems = listOf(
+            Stem(label = "drums", gmProgram = 0, isDrumKit = true, notes = emptyList()),
+            Stem(
+                label = "bass",
+                gmProgram = 33,
+                isDrumKit = false,
+                notes = listOf(NoteEvent(startTick = 0, endTick = 480, pitch = 40, velocity = 100)),
+            ),
+        )
+
+        val bytes = MidiFileWriter.write(stems = stems, format = 1)
+
+        assertEquals(1, bytes.readInt16(8)) // format 1
+        assertEquals(3, bytes.readInt16(10)) // ntrks: tempo + 2 stems
+    }
+
+    @Test
+    fun `format 1 round-trips through MidiFileParser with program changes on the right channels`() {
+        val stems = listOf(
+            Stem(label = "drums", gmProgram = 0, isDrumKit = true, notes = emptyList()),
+            Stem(
+                label = "bass",
+                gmProgram = 33,
+                isDrumKit = false,
+                notes = listOf(NoteEvent(startTick = 0, endTick = 480, pitch = 40, velocity = 100)),
+            ),
+        )
+
+        val bytes = MidiFileWriter.write(stems = stems, format = 1)
+        val parsed = MidiFileParser.parse(bytes)
+
+        val programChanges = parsed.events.filter { it.type == TimedEvent.Type.PROGRAM_CHANGE }
+        assertTrue(programChanges.any { it.channel == MidiConstants.DRUM_CHANNEL && it.data1 == 0 })
+        assertTrue(programChanges.any { it.channel != MidiConstants.DRUM_CHANNEL && it.data1 == 33 })
+        assertTrue(parsed.events.any { it.type == TimedEvent.Type.NOTE_ON && it.data1 == 40 })
+    }
+
     private fun ByteArray.readInt32(offset: Int): Int =
         ((this[offset].toInt() and 0xFF) shl 24) or
             ((this[offset + 1].toInt() and 0xFF) shl 16) or

@@ -28,7 +28,13 @@ import com.rm.mp3tomidi.midi.GmInstrument
  */
 object YamnetGmMapping {
 
-    data class GmMatch(val gmProgram: Int, val isDrumKit: Boolean = false, val isGenericSynth: Boolean = false)
+    data class GmMatch(
+        val gmProgram: Int,
+        val isDrumKit: Boolean = false,
+        val isGenericSynth: Boolean = false,
+        /** Set by [pickBestMatch] to the winning class's real score; 0f on every literal above. */
+        val score: Float = 0f,
+    )
 
     val BY_CLASS_INDEX: Map<Int, GmMatch> = buildMap {
         // Singing/vocal classes -- refines the vocals stem's default beyond a fixed Lead Voice.
@@ -139,7 +145,7 @@ object YamnetGmMapping {
             val score = meanScores.getOrElse(index) { 0f }
             if (score >= bestScore) {
                 bestScore = score
-                bestMatch = match
+                bestMatch = match.copy(score = score)
             }
         }
         return bestMatch
