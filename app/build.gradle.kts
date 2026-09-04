@@ -25,8 +25,8 @@ android {
         applicationId = "com.rm.mp3tomidi"
         minSdk = 27
         targetSdk = 37
-        versionCode = 5
-        versionName = "0.2.3"
+        versionCode = 6
+        versionName = "0.4.0"
 
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
 
