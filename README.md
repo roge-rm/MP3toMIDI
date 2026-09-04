@@ -11,7 +11,7 @@ You can use it as is if you like but you have been warned.
 
 Cheers
 
-<img src="docs/screenshot-main.png" alt="MP3toMIDI main screen: a source MP3 and output filename selected, ready to convert" width="360" /> <img src="docs/screenshot-play.png" alt="MP3toMIDI's MIDI playback screen: a converted file playing back through the default soundfont" width="360" />
+<img src="docs/screenshot-main.png" alt="MP3toMIDI main screen: a source MP3 and output filename selected, ready to convert" width="270" /> <img src="docs/screenshot-options.png" alt="MP3toMIDI's conversion options: per-stem processing toggles and a note-sensitivity slider" width="270" /> <img src="docs/screenshot-review.png" alt="MP3toMIDI's review-detected-instruments dialog, showing each stem's classified GM instrument, confidence, and note count before the MIDI file is written" width="270" /> <img src="docs/screenshot-play.png" alt="MP3toMIDI's MIDI playback screen: a converted file playing back through the default soundfont" width="270" />
 
 ## Features
 
@@ -32,12 +32,22 @@ Cheers
   real-instrument-trained classifier can't confidently place, and a fixed per-stem default as the
   last resort.
 - **Broad format support in** — MP3, WAV, FLAC, AAC, OGG, Opus, or anything else Android's own
-  media decoders handle — and a **Standard MIDI File (Type 0) out**.
+  media decoders handle — and a **Standard MIDI File out**, as a single merged track, a single
+  multi-track file, or separate per-stem files (your choice, see below).
 - **Fully offline after first use.** The two large models (Demucs, YAMNet) download once,
   verified by SHA-256, and are cached in app-private storage; only Basic Pitch's much smaller
   export ships bundled in the APK. Every conversion after the first needs no network at all.
-- Conversion runs as a foreground `WorkManager` job so it survives the app being backgrounded,
-  with a **cancel button** (with confirmation) that stops the job and cleans up its temp files.
+- **User-configurable conversion options**, set before converting: which of the 6 stems to
+  process, note-detection sensitivity, the silent-stem cutoff, and the output mode (a single
+  merged file, a single file with one track per instrument, or a separate `.mid` per stem).
+- **Review detected instruments before anything is written** — after separation, transcription,
+  and classification finish, a dialog shows each stem's classified GM instrument, confidence, and
+  note count, and lets you exclude a stem, manually override its instrument, or correct the
+  detected tempo before the final MIDI file is produced.
+- Conversion runs as two chained foreground `WorkManager` jobs (analyze, then write) so it
+  survives the app being backgrounded — and survives the app process itself being killed, since a
+  fresh app launch reconnects to whichever job is still running rather than losing track of it.
+  A **cancel button** (with confirmation) stops the job and cleans up its temp files.
 - **In-app MIDI playback** with real soundfont (SF2) synthesis — load any `.mid` file (not just
   ones this app produced) and hear it through a bundled-quality default soundfont, or load your
   own GM-compatible `.sf2`. Lets you A/B a conversion's output by ear, not just as data.
@@ -82,9 +92,14 @@ then `./gradlew assembleRelease`.
 
 ## Architecture
 
-- `convert/` — `ConversionPipeline` orchestrates the separate → transcribe → classify → write
-  stages; `ConversionWorker` runs it as a `WorkManager` `CoroutineWorker`/foreground service so a
-  conversion can outlive the app being backgrounded (and so it can be cancelled cleanly).
+- `convert/` — `ConversionPipeline` orchestrates the separate → transcribe → classify stages
+  (stopping short of writing MIDI) according to a `ConversionOptions`. Two chained `WorkManager`
+  `CoroutineWorker`/foreground services run it: `AnalysisWorker` runs the pipeline and caches its
+  result (`IntermediateResultStore`) to disk, then `ReviewDialog` shows what was detected; once
+  the user confirms (`ReviewSelections`), `WriteWorker` loads the cached result, applies the
+  chosen stem inclusions/instrument overrides/BPM, and writes the final MIDI output(s). Splitting
+  the pipeline this way — rather than one worker running straight through to a file — is what
+  makes the review step and the process-death-survives-a-conversion behavior above possible.
 - `convert/stages/` — the pipeline stages themselves, each independently swappable:
   - `DemucsStemSeparator` — runs the ONNX-exported `htdemucs_6s` model in overlapping windows,
     cross-faded back together, streaming output to disk rather than holding the whole song in
@@ -96,7 +111,8 @@ then `./gradlew assembleRelease`.
   - `TempoDetector` — global BPM estimate from the drum onset envelope.
   - `TimbreClassifier` (YAMNet) + `NoteEnvelopeClassifier` + `DemucsSourceClassifier` — the
     three-tier fallback chain that picks a GM program for each stem.
-- `midi/` — `MidiFileWriter`, a from-scratch Standard MIDI File (Type 0) writer, and
+- `midi/` — `MidiFileWriter`, a from-scratch Standard MIDI File writer (format 0, single merged
+  track, or format 1, one track per instrument, depending on the chosen output mode), and
   `MidiFileParser`, which reads one back (general format 0/1, multiple tempo changes) into a
   flat, time-sorted event list for playback.
 - `player/` — `Mp3Player` (source-audio preview) and `MidiPlayer` (sequences a parsed MIDI file
@@ -109,8 +125,9 @@ then `./gradlew assembleRelease`.
 - `util/` — `AudioDecoder` (generic `MediaExtractor`/`MediaCodec` decoding to PCM),
   `ModelProvider` (checksum-verified on-demand downloads, used for the Demucs/YAMNet models and
   the default soundfont alike), `PcmUtils`.
-- `ui/` — Jetpack Compose screens (`MainScreen`, `PlayScreen`, `MainViewModel`) and the app's
-  theme. A header toggle (see `AppScreen`/`AppHeader`) switches between the two screens.
+- `ui/` — Jetpack Compose screens (`MainScreen`, `PlayScreen`, `MainViewModel`), the pre-conversion
+  `ConversionOptionsDialog` and post-analysis `ReviewDialog`, and the app's theme. A header toggle
+  (see `AppScreen`/`AppHeader`) switches between the main and playback screens.
 - `tools/` — standalone Python scripts (not part of the Android build) that export and verify
   each ONNX model against its real upstream implementation; see each subfolder's own README for
   exactly how and why.
