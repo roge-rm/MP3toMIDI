@@ -16,8 +16,8 @@ import kotlin.math.min
  * The melodia trick only adds notes from energy the onset-based pass never claimed (a real
  * pitched tone that never had a clean attack, e.g. a bowed or synth-pad entrance); it does not
  * merge or otherwise fix notes the onset pass already fragmented into several short ones for a
- * single sustained tone -- see [com.rm.mp3tomidi.convert.stages.BasicPitchTranscriber]'s
- * doc for the separate, non-upstream fix for that.
+ * single sustained tone. A non-upstream merge step was tried for that and reverted -- see
+ * [com.rm.mp3tomidi.convert.stages.BasicPitchTranscriber]'s doc for why.
  */
 object BasicPitchNoteDecoder {
 
