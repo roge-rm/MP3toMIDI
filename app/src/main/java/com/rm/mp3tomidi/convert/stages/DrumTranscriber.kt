@@ -15,7 +15,12 @@ import kotlin.math.roundToLong
  */
 class DrumTranscriber : NoteTranscriber {
 
-    override suspend fun transcribe(context: Context, stem: RawStem, bpm: Int): List<NoteEvent> {
+    override suspend fun transcribe(
+        context: Context,
+        stem: RawStem,
+        bpm: Int,
+        frameThresh: Float,
+    ): List<NoteEvent> {
         val mono = loadMono(stem)
         if (mono.isEmpty()) return emptyList()
 

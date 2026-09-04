@@ -22,6 +22,7 @@ import kotlin.math.min
 object BasicPitchNoteDecoder {
 
     const val MIDI_OFFSET = 21
+    const val DEFAULT_FRAME_THRESH = 0.3f
     private const val MAX_FREQ_IDX = 87
 
     data class RawNote(val startFrame: Int, val endFrame: Int, val pitch: Int, val amplitude: Float)
@@ -31,7 +32,7 @@ object BasicPitchNoteDecoder {
         frames: Array<FloatArray>,
         onsets: Array<FloatArray>,
         onsetThresh: Float = 0.5f,
-        frameThresh: Float = 0.3f,
+        frameThresh: Float = DEFAULT_FRAME_THRESH,
         minNoteLen: Int = 11,
         energyTol: Int = 11,
         inferOnsets: Boolean = true,

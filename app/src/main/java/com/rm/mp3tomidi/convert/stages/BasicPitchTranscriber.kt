@@ -59,7 +59,12 @@ import kotlin.math.roundToLong
  */
 class BasicPitchTranscriber : NoteTranscriber {
 
-    override suspend fun transcribe(context: Context, stem: RawStem, bpm: Int): List<NoteEvent> {
+    override suspend fun transcribe(
+        context: Context,
+        stem: RawStem,
+        bpm: Int,
+        frameThresh: Float,
+    ): List<NoteEvent> {
         val monoAudio = loadAsMono22050(stem)
         if (monoAudio.isEmpty()) return emptyList()
 
@@ -83,7 +88,7 @@ class BasicPitchTranscriber : NoteTranscriber {
         val onsets = concatAndTrim(onsetWindows, totalFrames)
         val frames = concatAndTrim(noteWindows, totalFrames)
 
-        val rawNotes = BasicPitchNoteDecoder.decode(frames, onsets)
+        val rawNotes = BasicPitchNoteDecoder.decode(frames, onsets, frameThresh = frameThresh)
         val times = BasicPitchNoteDecoder.modelFramesToTime(totalFrames)
         val peakAmplitude = AudioFilters.peak(monoAudio).coerceAtLeast(MIN_AMPLITUDE)
 

@@ -32,19 +32,27 @@ class ConversionPipeline(
         context: Context,
         inputAudio: Uri,
         isCancelled: () -> Boolean,
+        options: ConversionOptions = ConversionOptions(),
         onProgress: suspend (stage: String, fraction: Float) -> Unit,
     ): ConversionResult {
         onProgress("Decoding audio", 0.05f)
         val durationUs = readDurationUs(context, inputAudio)
 
         onProgress("Separating stems", 0.2f)
-        val rawStems = separator.separate(context, inputAudio, durationUs, isCancelled, onProgress)
+        // Demucs itself can't skip a stem mid-model-run -- all 6 come out of one pass regardless
+        // of options.includedStemLabels. Excluding a stem only skips the transcription/
+        // classification work below, not separation time. Excluded stems' temp PCM files are
+        // deleted immediately rather than carried through to the shared cleanup below, since
+        // rawStems (used there) no longer references them past this point.
+        val allRawStems = separator.separate(context, inputAudio, durationUs, isCancelled, onProgress)
+        val rawStems = allRawStems.filter { it.label in options.includedStemLabels }
+        allRawStems.filter { it.label !in options.includedStemLabels }.forEach { it.pcmFile.delete() }
         try {
             if (isCancelled()) throw CancellationException("Conversion cancelled")
             onProgress("Detecting tempo", 0.5f)
             val bpm = detectBpm(rawStems)
 
-            val pitchedStems = analyzePitchedStems(rawStems)
+            val pitchedStems = analyzePitchedStems(rawStems, options.silentStemRmsRatio)
             val activeStems = pitchedStems.activeStems
 
             val notesByStem = activeStems.mapIndexed { index, raw ->
@@ -53,7 +61,7 @@ class ConversionPipeline(
                     "Transcribing notes (${index + 1}/${activeStems.size}: ${raw.label})",
                     lerp(0.5f, 0.8f, index.toFloat() / activeStems.size),
                 )
-                raw to transcriber.transcribe(context, raw, bpm)
+                raw to transcriber.transcribe(context, raw, bpm, options.noteFrameThreshold)
             }
 
             val balancedNotesByStem = balancePitchedVelocities(notesByStem, pitchedStems.rmsByLabel)
@@ -106,10 +114,10 @@ class ConversionPipeline(
      * re-reading every stem's (tens-of-MB) PCM file a second time just to recompute the same
      * numbers.
      */
-    private fun analyzePitchedStems(rawStems: List<RawStem>): PitchedStemAnalysis {
+    private fun analyzePitchedStems(rawStems: List<RawStem>, minRatio: Float): PitchedStemAnalysis {
         val pitched = rawStems.filter { it.label != "drums" }
         val rmsByLabel = pitched.associate { it.label to rmsOf(PcmUtils.readInterleavedPcm(it.pcmFile)) }
-        val silentLabels = silentPitchedLabels(rmsByLabel)
+        val silentLabels = silentPitchedLabels(rmsByLabel, minRatio)
         val activeStems = rawStems.filter { it.label !in silentLabels }
         return PitchedStemAnalysis(activeStems, rmsByLabel.filterKeys { it !in silentLabels })
     }
