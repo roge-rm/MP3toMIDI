@@ -5,15 +5,13 @@ plugins {
     alias(libs.plugins.kotlin.compose)
 }
 
-// Release signing credentials live in local.properties (gitignored, never committed) rather than
-// here -- same convention as the sibling ScaleInKey project. Falls back to unsigned release
-// builds when absent, e.g. on a fresh checkout, so `assembleRelease` doesn't hard-fail for anyone
-// without access to the real keystore.
-val localProperties = Properties().apply {
-    val file = rootProject.file("local.properties")
-    if (file.exists()) file.inputStream().use { load(it) }
-}
-val releaseStoreFile = localProperties.getProperty("mp3tomidi.release.storeFile")
+// Release signing comes from ../Keys/mp3tomidi-keystore.properties, beside the project rather than
+// in it (the same layout as Acidulous), so neither the keystore nor its passwords can ever be
+// committed. Without that file, e.g. on a fresh clone, the release build is simply unsigned.
+val signingProperties: Properties? = rootProject.file("../Keys/mp3tomidi-keystore.properties")
+    .takeIf { it.exists() }
+    ?.let { f -> Properties().apply { f.inputStream().use { load(it) } } }
+val releaseStoreFile = signingProperties?.getProperty("storeFile")
 
 android {
     namespace = "com.rm.mp3tomidi"
@@ -44,9 +42,9 @@ android {
         if (releaseStoreFile != null) {
             create("release") {
                 storeFile = file(releaseStoreFile)
-                storePassword = localProperties.getProperty("mp3tomidi.release.storePassword")
-                keyAlias = localProperties.getProperty("mp3tomidi.release.keyAlias")
-                keyPassword = localProperties.getProperty("mp3tomidi.release.keyPassword")
+                storePassword = signingProperties?.getProperty("storePassword")
+                keyAlias = signingProperties?.getProperty("keyAlias")
+                keyPassword = signingProperties?.getProperty("keyPassword")
             }
         }
     }
