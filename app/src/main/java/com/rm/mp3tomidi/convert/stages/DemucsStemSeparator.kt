@@ -54,7 +54,7 @@ class DemucsStemSeparator : StemSeparator {
     ): List<RawStem> {
         val modelFile = ModelProvider.ensureAvailable(context, MODEL_SPEC, isCancelled) { fraction ->
             onProgress(
-                "Downloading separation model (${(fraction * 100).toInt()}%)",
+                "Downloading the stem splitter, first time only (${(fraction * 100).toInt()}%)",
                 lerp(DOWNLOAD_RANGE_START, DOWNLOAD_RANGE_END, fraction),
             )
         }
@@ -99,7 +99,7 @@ class DemucsStemSeparator : StemSeparator {
                 }
 
                 onProgress(
-                    "Separating stems (${index + 1}/${placements.size})",
+                    "Splitting the song into stems (${index + 1}/${placements.size})",
                     lerp(SEPARATE_RANGE_START, SEPARATE_RANGE_END, (index + 1).toFloat() / placements.size),
                 )
             }

@@ -35,10 +35,10 @@ class ConversionPipeline(
         options: ConversionOptions = ConversionOptions(),
         onProgress: suspend (stage: String, fraction: Float) -> Unit,
     ): ConversionResult {
-        onProgress("Decoding audio", 0.05f)
+        onProgress("Reading the song", 0.05f)
         val durationUs = readDurationUs(context, inputAudio)
 
-        onProgress("Separating stems", 0.2f)
+        onProgress("Splitting the song into stems", 0.2f)
         // Demucs itself can't skip a stem mid-model-run -- all 6 come out of one pass regardless
         // of options.includedStemLabels. Excluding a stem only skips the transcription/
         // classification work below, not separation time. Excluded stems' temp PCM files are
@@ -49,7 +49,7 @@ class ConversionPipeline(
         allRawStems.filter { it.label !in options.includedStemLabels }.forEach { it.pcmFile.delete() }
         try {
             if (isCancelled()) throw CancellationException("Conversion cancelled")
-            onProgress("Detecting tempo", 0.5f)
+            onProgress("Finding the tempo", 0.5f)
             val bpm = detectBpm(rawStems)
 
             val pitchedStems = analyzePitchedStems(rawStems, options.silentStemRmsRatio)
@@ -58,7 +58,7 @@ class ConversionPipeline(
             val notesByStem = activeStems.mapIndexed { index, raw ->
                 if (isCancelled()) throw CancellationException("Conversion cancelled")
                 onProgress(
-                    "Transcribing notes (${index + 1}/${activeStems.size}: ${raw.label})",
+                    "Finding notes (${index + 1}/${activeStems.size}: ${raw.label})",
                     lerp(0.5f, 0.8f, index.toFloat() / activeStems.size),
                 )
                 raw to transcriber.transcribe(context, raw, bpm, options.noteFrameThreshold)
@@ -69,13 +69,13 @@ class ConversionPipeline(
             val stems = balancedNotesByStem.mapIndexed { index, (raw, notes) ->
                 if (isCancelled()) throw CancellationException("Conversion cancelled")
                 onProgress(
-                    "Mapping instruments to GM programs (${index + 1}/${balancedNotesByStem.size}: ${raw.label})",
+                    "Picking instruments (${index + 1}/${balancedNotesByStem.size}: ${raw.label})",
                     lerp(0.8f, 0.95f, index.toFloat() / balancedNotesByStem.size),
                 )
                 classifier.classify(context, raw, notes, bpm)
             }
 
-            onProgress("Writing MIDI file", 0.95f)
+            onProgress("Almost done", 0.95f)
             return ConversionResult(stems, bpm)
         } finally {
             // Each stem's separated audio is a temp file (see RawStem); nothing downstream of

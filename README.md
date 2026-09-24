@@ -3,7 +3,7 @@
 MP3toMIDI is a "proof of concept" idea I had where I wondered whether I could automate splitting stems from a real song and turning that into a decent MIDI file.
 So far the results are.. interesting, but nowhere near good. The files tend to be too busy to be enjoyable but the original song is usually recognizable.
 
-The way it works now is the song is split into 6 stems using Demucs and then those stems are shoved through a pitch transcriptor/drum hit idenitifier - this is then fed into a MIDI parser and a baby is made!
+The way it works now is the song is split into 6 stems using Demucs and then those stems are shoved through a pitch transcriptor/drum hit identifier - this is then fed into a MIDI parser and a baby is made!
 
 This baby runs locally on your device (Android 8.1+) after downloading a few models and a stock soundfont. Conversions take many minutes (10+) on a midrange device and could be more on something worse. 
 You can use it as is if you like but you have been warned. 
@@ -15,61 +15,46 @@ Cheers
 
 ## Features
 
-- **6-stem separation** (drums, bass, vocals, guitar, piano, other) via `htdemucs_6s`, the
-  highest-quality Demucs configuration, run fully on-device through ONNX Runtime Mobile.
-- **Polyphonic pitch transcription** for every pitched stem via Spotify's Basic Pitch
-  (onset/pitch/offset detection), instead of a single monophonic pitch track for the whole song.
-- **Real drum-hit classification** (kick, snare, closed hi-hat, crash/open hi-hat) from the
-  isolated drums stem — dual-band onset detection (so quiet hi-hats aren't drowned out by loud
-  kicks) plus FFT band-power and decay-shape heuristics, calibrated against real songs across
-  several genres rather than only synthetic test signals.
-- **Real tempo detection** via autocorrelation of the drum onset envelope, with a correction for
-  the specific case where a syncopated backbeat pattern (breakbeats, half-time grooves) fools a
-  naive autocorrelation into locking onto the wrong metrical level.
-- **Real instrument classification per stem**, not a fixed guess — Google's YAMNet identifies
-  what a stem actually sounds like and maps it to the closest General MIDI program, with a
-  note-envelope-shape fallback (bass / pad / lead / pluck) for synthesizer timbres that a
-  real-instrument-trained classifier can't confidently place, and a fixed per-stem default as the
-  last resort.
-- **Broad format support in** — MP3, WAV, FLAC, AAC, OGG, Opus, or anything else Android's own
-  media decoders handle — and a **Standard MIDI File out**, as a single merged track, a single
-  multi-track file, or separate per-stem files (your choice, see below).
-- **Fully offline after first use.** The two large models (Demucs, YAMNet) download once,
-  verified by SHA-256, and are cached in app-private storage; only Basic Pitch's much smaller
-  export ships bundled in the APK. Every conversion after the first needs no network at all.
-- **User-configurable conversion options**, set before converting: which of the 6 stems to
-  process, note-detection sensitivity, the silent-stem cutoff, and the output mode (a single
-  merged file, a single file with one track per instrument, or a separate `.mid` per stem).
-- **Review detected instruments before anything is written** — after separation, transcription,
-  and classification finish, a dialog shows each stem's classified GM instrument, confidence, and
-  note count, and lets you exclude a stem, manually override its instrument, or correct the
-  detected tempo before the final MIDI file is produced.
-- Conversion runs as two chained foreground `WorkManager` jobs (analyze, then write) so it
-  survives the app being backgrounded — and survives the app process itself being killed, since a
-  fresh app launch reconnects to whichever job is still running rather than losing track of it.
-  A **cancel button** (with confirmation) stops the job and cleans up its temp files.
-- **In-app MIDI playback** with real soundfont (SF2) synthesis — load any `.mid` file (not just
-  ones this app produced) and hear it through a bundled-quality default soundfont, or load your
-  own GM-compatible `.sf2`. Lets you A/B a conversion's output by ear, not just as data.
+- Splits a song into 6 stems (drums, bass, vocals, guitar, piano and other) with Demucs'
+  `htdemucs_6s`, the best sounding version of it, running right on your phone.
+- Finds the notes in every pitched stem with Spotify's Basic Pitch, so chords come through
+  instead of just one note at a time.
+- Works out the drums hit by hit (kick, snare, closed hi-hat, crash/open hi-hat). Quiet hi-hats
+  still get picked up under loud kicks, and it was tuned on real songs from a bunch of genres,
+  not just test tones.
+- Finds the tempo from the drums, and doesn't get fooled into half or double time by breakbeats
+  and half-time grooves.
+- Guesses the instrument for each stem with Google's YAMNet and picks the closest General MIDI
+  sound. If YAMNet can't tell (synths mostly), it goes by the shape of the notes (bass, pad, lead
+  or pluck), and if that fails too, it uses a default for the stem.
+- Takes MP3, WAV, FLAC, AAC, OGG, Opus or anything else Android can play, and gives you a
+  standard MIDI file back.
+- Before converting you can pick which stems to use, how sensitive the note detection is, how
+  quiet a stem can be before it's thrown out, and how you want the output: one file on one track,
+  one file with a track per instrument, or a separate file for each stem.
+- Once it's done listening, you get to check what it found before anything is written. Each stem
+  shows its instrument, how sure it was and how many notes it found, and you can drop a stem,
+  pick a different instrument or fix the tempo.
+- Conversions keep going in the background, even if Android kills the app. Open it again and it
+  picks up where the conversion is. There's a cancel button too, which cleans up after itself.
+- A MIDI player with real soundfont playback, so you can hear what you got. It plays any `.mid`
+  file, not just ones from this app, with the default soundfont or your own `.sf2`.
+- Works offline after the first conversion. Demucs and YAMNet download once, get checked, and
+  stay on the phone. Basic Pitch is small enough to come with the app.
 
 ## Requirements
 
-- Android Studio (recent stable).
-- A JDK — this project has no system-wide `JAVA_HOME` requirement baked in, but if you're running
-  Gradle from the command line rather than through Android Studio, point `JAVA_HOME` at Android
-  Studio's bundled JBR, e.g.:
+- Android Studio (recent stable), with the NDK and CMake 4.1.2 for the audio engine. It'll offer
+  to install them if they're missing.
+- If you build from the command line, point `JAVA_HOME` at Android Studio's JDK:
   ```
   export JAVA_HOME=/path/to/android-studio/jbr
   ```
 - minSdk 27 / targetSdk 37.
-- A device or emulator with a few GB of free RAM for the separation stage — the ONNX Runtime
-  session settings are tuned to keep peak memory around ~750MB, but it's still real on-device
-  neural network inference, not a lightweight operation.
-- An internet connection the *first* time you run a conversion, to download the Demucs (~235MB)
-  and YAMNet (~16MB) models. Not needed again after that. The MIDI playback screen has its own
-  first-use download too: the default soundfont (~148MB).
-- The NDK and CMake (4.1.2), for the native audio engine behind MIDI playback — Android Studio
-  will prompt to install these if missing.
+- A phone or emulator with a few GB of free RAM. Splitting the stems peaks around 750MB, it's
+  a real neural network after all.
+- Internet the first time you convert, for Demucs (~235MB) and YAMNet (~16MB), and the first time
+  you open the player, for the default soundfont (~148MB). Not needed after that.
 
 ## Building & testing
 
@@ -78,8 +63,8 @@ Cheers
 ./gradlew testDebugUnitTest    # run the unit tests
 ```
 
-Release builds are unsigned by default. To produce a signed release APK, add your own keystore
-credentials to `local.properties` (never committed):
+Release builds aren't signed unless you give it a keystore. Put your details in
+`local.properties` (it never gets committed):
 
 ```
 mp3tomidi.release.storeFile=/path/to/your.keystore
@@ -88,75 +73,63 @@ mp3tomidi.release.keyAlias=...
 mp3tomidi.release.keyPassword=...
 ```
 
-then `./gradlew assembleRelease`.
+then run `./gradlew assembleRelease`.
 
 ## Architecture
 
-- `convert/` — `ConversionPipeline` orchestrates the separate → transcribe → classify stages
-  (stopping short of writing MIDI) according to a `ConversionOptions`. Two chained `WorkManager`
-  `CoroutineWorker`/foreground services run it: `AnalysisWorker` runs the pipeline and caches its
-  result (`IntermediateResultStore`) to disk, then `ReviewDialog` shows what was detected; once
-  the user confirms (`ReviewSelections`), `WriteWorker` loads the cached result, applies the
-  chosen stem inclusions/instrument overrides/BPM, and writes the final MIDI output(s). Splitting
-  the pipeline this way — rather than one worker running straight through to a file — is what
-  makes the review step and the process-death-survives-a-conversion behavior above possible.
-- `convert/stages/` — the pipeline stages themselves, each independently swappable:
-  - `DemucsStemSeparator` — runs the ONNX-exported `htdemucs_6s` model in overlapping windows,
-    cross-faded back together, streaming output to disk rather than holding the whole song in
-    memory across all 6 stems at once.
-  - `BasicPitchTranscriber` / `CompositeNoteTranscriber` — polyphonic note transcription for
-    pitched stems.
-  - `DrumOnsetDetector` + `DrumHitClassifier` — onset detection and per-hit percussion
-    classification for the drums stem.
-  - `TempoDetector` — global BPM estimate from the drum onset envelope.
-  - `TimbreClassifier` (YAMNet) + `NoteEnvelopeClassifier` + `DemucsSourceClassifier` — the
-    three-tier fallback chain that picks a GM program for each stem.
-- `midi/` — `MidiFileWriter`, a from-scratch Standard MIDI File writer (format 0, single merged
-  track, or format 1, one track per instrument, depending on the chosen output mode), and
-  `MidiFileParser`, which reads one back (general format 0/1, multiple tempo changes) into a
-  flat, time-sorted event list for playback.
-- `player/` — `Mp3Player` (source-audio preview) and `MidiPlayer` (sequences a parsed MIDI file
-  against `SoundEngine` in real time: per-channel program state, seeking, pause).
-- `audio/` + `cpp/` — `SoundEngine`/`NativeSoundEngine` (Kotlin) and a native Oboe + TinySoundFont
-  engine (`native_sound_engine.cpp`, ported from the sibling
-  [ScaleInKey](https://github.com/roge-rm/ScaleInKey) project) for real-time SF2 synthesis, with a
-  lock-free command queue so note-on/off requests from Kotlin never race with rendering on the
-  audio callback thread.
-- `util/` — `AudioDecoder` (generic `MediaExtractor`/`MediaCodec` decoding to PCM),
-  `ModelProvider` (checksum-verified on-demand downloads, used for the Demucs/YAMNet models and
-  the default soundfont alike), `PcmUtils`.
-- `ui/` — Jetpack Compose screens (`MainScreen`, `PlayScreen`, `MainViewModel`), the pre-conversion
-  `ConversionOptionsDialog` and post-analysis `ReviewDialog`, and the app's theme. A header toggle
-  (see `AppScreen`/`AppHeader`) switches between the main and playback screens.
-- `tools/` — standalone Python scripts (not part of the Android build) that export and verify
-  each ONNX model against its real upstream implementation; see each subfolder's own README for
-  exactly how and why.
+- `convert/` - `ConversionPipeline` runs the split, find notes and pick instruments steps
+  based on `ConversionOptions`. It runs as two `WorkManager` jobs: `AnalysisWorker` does the
+  listening and saves what it found to disk (`IntermediateResultStore`), `ReviewDialog` shows
+  it to you, and once you confirm (`ReviewSelections`) `WriteWorker` loads it back, applies your
+  changes and writes the MIDI. Splitting it in two is what makes the review step possible, and
+  what lets a conversion survive the app being killed.
+- `convert/stages/` - the steps themselves, each one swappable:
+  - `DemucsStemSeparator` - runs `htdemucs_6s` over the song in overlapping chunks, blends them
+    back together, and writes the stems to disk as it goes instead of holding them all in memory.
+  - `BasicPitchTranscriber` / `CompositeNoteTranscriber` - finds the notes in pitched stems.
+  - `DrumOnsetDetector` + `DrumHitClassifier` - finds the drum hits and works out what each one is.
+  - `TempoDetector` - the tempo, from the drum hits.
+  - `TimbreClassifier` (YAMNet), then `NoteEnvelopeClassifier`, then `DemucsSourceClassifier` -
+    the three tries at picking an instrument for each stem, in order.
+- `midi/` - `MidiFileWriter` writes standard MIDI files from scratch (format 0 for one track,
+  format 1 for a track per instrument), and `MidiFileParser` reads them back for the player.
+- `player/` - `Mp3Player` previews the source song, `MidiPlayer` plays a MIDI file through
+  `SoundEngine` (instrument changes, seeking, pause).
+- `audio/` + `cpp/` - `SoundEngine`/`NativeSoundEngine` on the Kotlin side, and an Oboe +
+  TinySoundFont engine (`native_sound_engine.cpp`) on the native side, borrowed from
+  [ScaleInKey](https://github.com/roge-rm/ScaleInKey). Notes get passed through a lock-free
+  queue so Kotlin never gets in the way of the audio thread.
+- `util/` - `AudioDecoder` (turns any song Android can play into raw audio), `ModelProvider`
+  (downloads and checks the models and the soundfont), `PcmUtils`.
+- `ui/` - the Compose screens (`MainScreen`, `PlayScreen`, `MainViewModel`), the options and
+  review dialogs, and the theme. The button in the header (`AppHeader`) switches between
+  converting and playing.
+- `tools/` - Python scripts (not part of the app) that export each model to ONNX and check it
+  against the original. Each folder has its own README with the details.
 
 ## Attribution
 
-This app wouldn't exist without the following open-source models and libraries:
+This app wouldn't exist without these:
 
-- **[Demucs](https://github.com/facebookresearch/demucs)** (`htdemucs_6s`) — Meta/Facebook
-  Research, MIT License. Exported to ONNX for on-device inference; see
-  `tools/demucs_export/README.md` for the conversion process.
-- **[Basic Pitch](https://github.com/spotify/basic-pitch)** — Spotify, Apache License 2.0.
-  Bundled directly in the app (its ONNX export is only ~230KB); see
-  `tools/basic_pitch_export/README.md`.
-- **[YAMNet](https://tfhub.dev/google/yamnet/1)** — Google, Apache License 2.0, via the
-  [AudioSet](https://research.google.com/audioset/) ontology. ONNX conversion sourced from
-  `zeropointnine/yamnet-onnx` on Hugging Face and verified against the real TF-Hub model; see
+- **[Demucs](https://github.com/facebookresearch/demucs)** (`htdemucs_6s`) by Meta/Facebook
+  Research, MIT License. Exported to ONNX to run on the phone, see
+  `tools/demucs_export/README.md`.
+- **[Basic Pitch](https://github.com/spotify/basic-pitch)** by Spotify, Apache License 2.0.
+  Comes with the app (it's only ~230KB), see `tools/basic_pitch_export/README.md`.
+- **[YAMNet](https://tfhub.dev/google/yamnet/1)** by Google, Apache License 2.0, using the
+  [AudioSet](https://research.google.com/audioset/) categories. The ONNX version is from
+  `zeropointnine/yamnet-onnx` on Hugging Face, checked against the original, see
   `tools/yamnet_export/README.md`.
-- **[ONNX Runtime Mobile](https://onnxruntime.ai/)** — Microsoft, MIT License. Runs all three
-  models on-device.
-- **[FluidR3 GM](https://member.keymusician.com/Member/FluidR3_GM/)** soundfont — Frank Wen, MIT
-  License. The default soundfont for in-app MIDI playback; downloaded on first use (see
-  `SoundEngine.kt`).
-- **[TinySoundFont](https://github.com/schellingb/TinySoundFont)** — Bernhard Schelling, MIT
-  License. Vendored directly (`app/src/main/cpp/tsf.h`) for real-time SF2 synthesis.
-- **[Oboe](https://github.com/google/oboe)** — Google, Apache License 2.0. Low-latency native
-  audio output for MIDI playback.
-- Jetpack Compose, WorkManager, Media3, and the rest of the AndroidX/Kotlin ecosystem.
+- **[ONNX Runtime Mobile](https://onnxruntime.ai/)** by Microsoft, MIT License. Runs all three
+  models.
+- **[FluidR3 GM](https://member.keymusician.com/Member/FluidR3_GM/)** soundfont by Frank Wen, MIT
+  License. The player's default soundfont, downloaded the first time you use it.
+- **[TinySoundFont](https://github.com/schellingb/TinySoundFont)** by Bernhard Schelling, MIT
+  License. Included in `app/src/main/cpp/tsf.h`.
+- **[Oboe](https://github.com/google/oboe)** by Google, Apache License 2.0. Low-latency audio for
+  the player.
+- Jetpack Compose, WorkManager, Media3 and the rest of AndroidX and Kotlin.
 
 ## License
 
-MIT — see [LICENSE](LICENSE).
+MIT, see [LICENSE](LICENSE).

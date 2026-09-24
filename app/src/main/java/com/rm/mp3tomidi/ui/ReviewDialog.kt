@@ -145,7 +145,7 @@ private fun StemReviewRow(
                 val confidenceText = if (stem.confidence >= 0f) {
                     "Confidence: ${(stem.confidence * 100).roundToInt()}%"
                 } else {
-                    "Confidence: Default"
+                    "Couldn't tell, using the default"
                 }
                 Text(
                     "$confidenceText  ·  ${stem.notes.size} notes",

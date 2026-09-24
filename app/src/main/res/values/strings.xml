@@ -1,18 +1,18 @@
 <resources>
     <string name="app_name">MP3toMIDI</string>
     <string name="choose_input">Choose input file</string>
-    <string name="input_formats_hint">MP3, WAV, FLAC, AAC, OGG &amp; more</string>
+    <string name="input_formats_hint">MP3, WAV, FLAC, AAC, OGG and more</string>
     <string name="choose_output">Choose output file</string>
     <string name="output_file_name">Output file name</string>
     <string name="convert">Convert to MIDI</string>
     <string name="cancel_conversion">Cancel conversion</string>
     <string name="cancel_conversion_title">Cancel conversion?</string>
-    <string name="cancel_conversion_message">This will stop the conversion and delete any files it has created so far. This can\'t be undone.</string>
+    <string name="cancel_conversion_message">This stops the conversion and deletes anything it\'s made so far. You can\'t undo it.</string>
     <string name="keep_converting">Keep converting</string>
     <string name="play">Play</string>
     <string name="pause">Pause</string>
     <string name="no_file_selected">No file selected</string>
-    <string name="conversion_channel_name">MP3 to MIDI conversion</string>
+    <string name="conversion_channel_name">Conversions</string>
 
     <string name="switch_to_play_screen">Play a MIDI file</string>
     <string name="switch_to_convert_screen">Back to convert</string>
