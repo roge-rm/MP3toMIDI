@@ -42,6 +42,20 @@ Cheers
 - Works offline after the first conversion. Demucs and YAMNet download once, get checked, and
   stay on the phone. Basic Pitch is small enough to come with the app.
 
+## Installing
+
+The easiest way to install MP3toMIDI and keep it up to date is through my F-Droid repo, which has
+my other apps too. With the [F-Droid](https://f-droid.org/) app installed, open this link on
+your phone to add the repo, or scan the QR code on the [repo page](https://roge-rm.gitlab.io/repo/):
+
+[https://roge-rm.gitlab.io/repo](https://roge-rm.gitlab.io/repo?fingerprint=80438B253C257BCCE05CDCB9E3AC9B6174C2250659962B14FCBE7F32FD42D53E)
+
+Then search for MP3toMIDI in F-Droid. When a new version comes out, F-Droid will offer it as an update.
+
+You can also download the APK from the [Releases](https://github.com/roge-rm/MP3toMIDI/releases)
+page and sideload it. Both are signed with the same key, so you can switch between them without
+reinstalling.
+
 ## Requirements
 
 - Android Studio (recent stable), with the NDK and CMake 4.1.2 for the audio engine. It'll offer
