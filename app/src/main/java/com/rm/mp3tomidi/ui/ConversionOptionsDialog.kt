@@ -35,9 +35,9 @@ private val STEM_DISPLAY_NAMES = mapOf(
 )
 
 private val OUTPUT_MODE_LABELS = mapOf(
-    OutputMode.SINGLE_MERGED to "Single file, merged",
-    OutputMode.SINGLE_MULTI_TRACK to "Single file, one track per instrument",
-    OutputMode.SEPARATE_FILES to "Separate file per stem",
+    OutputMode.SINGLE_MERGED to "One file, everything on one track",
+    OutputMode.SINGLE_MULTI_TRACK to "One file, a track per instrument",
+    OutputMode.SEPARATE_FILES to "A separate file for each stem",
 )
 
 @Composable
@@ -84,7 +84,7 @@ fun ConversionOptionsDialog(
                 SectionCard(title = "Sensitivity") {
                     Text("Note sensitivity", style = MaterialTheme.typography.bodyMedium)
                     Text(
-                        "Lower catches more/quieter notes; higher keeps only clearly-sustained ones.",
+                        "Lower picks up more notes, including quiet ones. Higher only keeps the clear ones.",
                         style = MaterialTheme.typography.bodySmall,
                         color = MaterialTheme.colorScheme.onSurfaceVariant,
                     )
@@ -96,7 +96,7 @@ fun ConversionOptionsDialog(
 
                     Text("Silent stem cutoff", style = MaterialTheme.typography.bodyMedium)
                     Text(
-                        "How quiet a stem must be, relative to the loudest, to be dropped as noise.",
+                        "Stems this much quieter than the loudest one get thrown out as noise.",
                         style = MaterialTheme.typography.bodySmall,
                         color = MaterialTheme.colorScheme.onSurfaceVariant,
                     )

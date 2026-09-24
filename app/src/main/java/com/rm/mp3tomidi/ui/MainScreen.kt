@@ -322,7 +322,7 @@ fun MainScreen(viewModel: MainViewModel, onSwitchScreen: () -> Unit) {
                 when {
                     isActive(analysisWorkInfo) || isActive(writeWorkInfo) || reviewPending -> {
                         SectionCard(title = "Converting") {
-                            Text(stage ?: if (reviewPending) "Review detected instruments" else "", style = MaterialTheme.typography.bodyLarge)
+                            Text(stage ?: if (reviewPending) "Check the instruments to keep going" else "", style = MaterialTheme.typography.bodyLarge)
                             LinearProgressIndicator(
                                 progress = { fraction },
                                 color = BrandTeal,
@@ -334,12 +334,12 @@ fun MainScreen(viewModel: MainViewModel, onSwitchScreen: () -> Unit) {
                         }
                     }
                     writeWorkInfo?.state == WorkInfo.State.SUCCEEDED -> ResultBanner(
-                        text = "Conversion complete",
+                        text = "All done!",
                         icon = Icons.Filled.CheckCircle,
                         color = BrandTeal,
                     )
                     analysisWorkInfo?.state == WorkInfo.State.FAILED || writeWorkInfo?.state == WorkInfo.State.FAILED -> ResultBanner(
-                        text = "Conversion failed",
+                        text = "Conversion failed, sorry",
                         icon = Icons.Filled.Error,
                         color = BrandPink,
                     )
