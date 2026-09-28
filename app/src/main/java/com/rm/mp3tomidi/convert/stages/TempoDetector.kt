@@ -16,8 +16,8 @@ import kotlin.math.roundToInt
  * Unlike DrumHitClassifier, this one does have real ground truth available for spot-checking:
  * published BPM listings (Beatport, Tunebat) for real songs. Autocorrelation of a periodic signal
  * is inherently ambiguous between a tempo and its integer multiples/divisors (half-time,
- * double-time, etc.) -- a mild log-domain prior centered on a typical-song tempo breaks ties among
- * otherwise-similar-strength candidates in favor of the more usual answer. A second, more targeted
+ * double-time, etc.) -- a mild log-domain prior centred on a typical-song tempo breaks ties among
+ * otherwise-similar-strength candidates in favour of the more usual answer. A second, more targeted
  * cross-check (see [CROSS_CHECK_TEMPO_RATIO]'s doc) additionally corrects a specific non-octave
  * ambiguity -- a 3:2 ratio -- found on two real syncopated/breakbeat-driven songs. Neither
  * mechanism guarantees a correct result far outside what's been validated; this remains a

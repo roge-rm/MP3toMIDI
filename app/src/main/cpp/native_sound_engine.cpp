@@ -17,9 +17,9 @@
 //   - tsf_note_on / tsf_render_float share the same internal voice-pool state in tsf.h, and
 //     tsf.h has NO internal locking. Calling tsf_note_on from an arbitrary JNI-calling thread
 //     while tsf_render_float runs concurrently on the audio callback thread is a genuine data
-//     race (undefined behavior), not a hypothetical one — this is the leading suspect for
+//     race (undefined behaviour), not a hypothetical one — this is the leading suspect for
 //     intermittent corrupted/buzzy playback seen during development with a previous
-//     (different-library) implementation that didn't synchronize the two.
+//     (different-library) implementation that didn't synchronise the two.
 //   - The fix: note-on/off requests are pushed onto a lock-free single-consumer queue from
 //     whatever thread calls noteOn()/noteOff(), and only ever *applied* (tsf_note_on/off
 //     actually called) from inside the audio callback itself, right before rendering. So
@@ -67,7 +67,7 @@ struct NoteCommand {
     float velocity;
 };
 
-// Multi-producer (any calling thread; producers are serialized by pushMutex_, which is never
+// Multi-producer (any calling thread; producers are serialised by pushMutex_, which is never
 // touched by the audio thread), single-consumer (the audio callback, lock-free) ring buffer.
 class NoteCommandQueue {
 public:

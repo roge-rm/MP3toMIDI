@@ -47,15 +47,15 @@ import com.rm.mp3tomidi.util.displayNameOf
 import kotlinx.coroutines.launch
 
 // "audio/midi"/"audio/x-midi" worked on the emulator this was built against, but a real device
-// reported back grays out genuine .mid files under that filter while letting unrelated files
+// reported back greys out genuine .mid files under that filter while letting unrelated files
 // through (a user found real .mid files disabled while a different app's *.mid.rtx recordings
 // were selectable) -- proof MIME-type-from-extension mapping for .mid is not consistent across
 // real devices/OEM skins, the same class of problem SF2 already had below, just discovered the
-// opposite way (there, no device recognizes the type at all; here, some devices apparently
+// opposite way (there, no device recognises the type at all; here, some devices apparently
 // mis-map it). Unfiltered is the only mapping that can't be wrong on some device.
 private val MIDI_MIME_TYPES = arrayOf("*/*")
 
-// SF2 has no MIME type Android's provider framework recognizes, so filtering by type would just
+// SF2 has no MIME type Android's provider framework recognises, so filtering by type would just
 // hide every real .sf2 file rather than show only them -- confirmed on-device, same discipline
 // as the earlier .mid-exclusion fix on the conversion input picker (that one narrowed a filter
 // that matched too much; this one would need to widen a filter that matches nothing at all).

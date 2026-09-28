@@ -7,12 +7,12 @@ import kotlin.math.pow
 /**
  * One model-input window: [segmentLength] samples built by taking [readLength] real samples
  * starting at [readStart] in the source signal, padded with [padLeft] zeros on the left (and
- * implicitly zeros on the right to fill out the rest). The window is centered on the source
+ * implicitly zeros on the right to fill out the rest). The window is centred on the source
  * region [offset, offset + validLength) rather than right-padded, so the last (short) chunk
  * still gets real audio as context on both sides wherever it's available.
  *
  * After running the model on this window, the [validLength]-sample result for this chunk is
- * the center crop of the model's output starting at [trimStart].
+ * the centre crop of the model's output starting at [trimStart].
  */
 data class ChunkPlacement(
     val offset: Int,

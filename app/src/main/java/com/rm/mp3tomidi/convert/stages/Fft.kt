@@ -3,7 +3,7 @@ package com.rm.mp3tomidi.convert.stages
 /** Iterative radix-2 Cooley-Tukey FFT operating in place on parallel real/imaginary arrays. */
 object Fft {
 
-    /** Transforms [re]/[im] in place (forward DFT, unnormalized). Size must be a power of two. */
+    /** Transforms [re]/[im] in place (forward DFT, unnormalised). Size must be a power of two. */
     fun transform(re: FloatArray, im: FloatArray) {
         val n = re.size
         require(re.size == im.size) { "re and im must be the same size" }

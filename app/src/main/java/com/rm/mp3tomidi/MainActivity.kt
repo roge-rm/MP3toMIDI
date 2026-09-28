@@ -19,7 +19,7 @@ class MainActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         // The header (see AppHeader) is a gradient that's meant to run edge-to-edge behind the
-        // status bar, not sit below a system-colored bar -- see enableEdgeToEdge's default
+        // status bar, not sit below a system-coloured bar -- see enableEdgeToEdge's default
         // light/dark status bar icon detection getting overridden in each screen for why that
         // still works once the header scrolls away.
         enableEdgeToEdge()

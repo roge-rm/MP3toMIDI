@@ -1,7 +1,7 @@
 # MP3toMIDI
 
 MP3toMIDI is a "proof of concept" idea I had where I wondered whether I could automate splitting stems from a real song and turning that into a decent MIDI file.
-So far the results are.. interesting, but nowhere near good. The files tend to be too busy to be enjoyable but the original song is usually recognizable.
+So far the results are.. interesting, but nowhere near good. The files tend to be too busy to be enjoyable but the original song is usually recognisable.
 
 The way it works now is the song is split into 6 stems using Demucs and then those stems are shoved through a pitch transcriptor/drum hit identifier - this is then fed into a MIDI parser and a baby is made!
 

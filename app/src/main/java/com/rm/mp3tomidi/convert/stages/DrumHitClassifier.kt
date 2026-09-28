@@ -14,7 +14,7 @@ import kotlin.math.min
  *
  * An earlier version measured "low-frequency energy" via a single-pole lowpass filter's own RMS
  * output. That doesn't work: a one-pole filter only rolls off at -6dB/octave, so a "150Hz
- * lowpass" still passes a large fraction of energy from content centered hundreds of Hz above its
+ * lowpass" still passes a large fraction of energy from content centred hundreds of Hz above its
  * cutoff. Verified against a real drum stem (FFT ground truth on captured onset windows): hits
  * with only ~10% of their spectral power below 150Hz (centroid ~300-1200Hz -- textbook snare
  * body/wires) still showed a one-pole "low ratio" of 0.53-0.65, comfortably over the old 0.5

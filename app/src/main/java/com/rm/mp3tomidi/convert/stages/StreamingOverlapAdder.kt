@@ -53,8 +53,8 @@ class StreamingOverlapAdder(
     }
 
     /**
-     * Normalizes and returns each source's interleaved PCM for frames finalized now that no
-     * future chunk starts before [nextChunkOffset], or null if nothing new is finalized yet.
+     * Normalises and returns each source's interleaved PCM for frames finalised now that no
+     * future chunk starts before [nextChunkOffset], or null if nothing new is finalised yet.
      */
     fun flushUpTo(nextChunkOffset: Int): Array<FloatArray>? {
         val flushCount = nextChunkOffset - bufferStartFrame

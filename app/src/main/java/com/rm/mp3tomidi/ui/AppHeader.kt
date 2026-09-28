@@ -30,8 +30,8 @@ import com.rm.mp3tomidi.ui.theme.BrandTeal
 import com.rm.mp3tomidi.ui.theme.BrandYellow
 
 // Teal and pink are near-complementary, so a plain 2-stop gradient between them interpolates
-// through a muddy gray midpoint in RGB space -- routing through yellow (which is also literally
-// the app icon's 3-color order, top to bottom) keeps it vivid the whole way across instead.
+// through a muddy grey midpoint in RGB space -- routing through yellow (which is also literally
+// the app icon's 3-colour order, top to bottom) keeps it vivid the whole way across instead.
 val HeaderGradient = Brush.horizontalGradient(listOf(BrandTeal, BrandYellow, BrandPink))
 
 /**

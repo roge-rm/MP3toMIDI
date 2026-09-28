@@ -61,6 +61,6 @@ venv/bin/python verify.py   # confirms the ONNX export matches the real TF-Hub m
 `yamnet.onnx` in chunks (to bound peak memory on a multi-minute stem), averages `output_0` across
 all patches, and maps the highest-scoring *instrument-relevant* AudioSet class to a GM program via
 a hand-built lookup table (`YamnetGmMapping.kt`) -- non-instrument classes (`Speech`, `Music`,
-`Silence`, genre tags, etc.) are ignored in favor of the next-highest instrument class, falling
+`Silence`, genre tags, etc.) are ignored in favour of the next-highest instrument class, falling
 back to `DemucsSourceClassifier`'s original per-label default if no instrument class clears a
 confidence threshold.

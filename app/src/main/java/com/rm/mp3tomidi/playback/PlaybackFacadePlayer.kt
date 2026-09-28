@@ -43,7 +43,7 @@ class PlaybackFacadePlayer(looper: Looper) : SimpleBasePlayer(looper) {
         if (source == null || durationMs <= 0L) {
             // Nothing has ever played (or we're between "announced" and "duration known") --
             // no MediaItem in the playlist means no notification shows yet, per media3's own
-            // documented behavior.
+            // documented behaviour.
             return State.Builder()
                 .setAvailableCommands(Player.Commands.EMPTY)
                 .setPlaybackState(Player.STATE_IDLE)

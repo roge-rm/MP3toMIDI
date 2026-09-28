@@ -1,6 +1,6 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources xmlns:tools="http://schemas.android.com/tools">
-    <!-- The whole UI is Compose (see ui/theme/Theme.kt for the real color scheme); this theme
+    <!-- The whole UI is Compose (see ui/theme/Theme.kt for the real colour scheme); this theme
          just needs to keep the window itself out of the way (no action bar, edge-to-edge). -->
     <style name="Theme.MP3toMIDI" parent="Theme.MaterialComponents.DayNight.NoActionBar" />
 </resources>

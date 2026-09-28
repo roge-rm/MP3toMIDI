@@ -45,8 +45,8 @@ object BasicPitchNoteDecoder {
         val effectiveOnsets = if (inferOnsets) inferOnsets(onsets, frames) else onsets
 
         // scipy.signal.argrelmax(onsets, axis=0), default order=1, mode='clip': a point is a
-        // peak only if strictly greater than both neighbors, and with mode='clip' the "missing"
-        // neighbor at each edge is the edge value itself -- so edge points (v > v is false) can
+        // peak only if strictly greater than both neighbours, and with mode='clip' the "missing"
+        // neighbour at each edge is the edge value itself -- so edge points (v > v is false) can
         // never be peaks.
         val peakThreshMat = Array(nTimes) { FloatArray(nFreqs) }
         for (f in 0 until nFreqs) {
@@ -61,7 +61,7 @@ object BasicPitchNoteDecoder {
         // np.where on a 2D array walks row-major (time ascending, then freq ascending); the
         // reference implementation then reverses that to process later onsets first. Both the
         // order and the reversal are load-bearing below: remainingEnergy is mutated as we go, so
-        // a later-time onset can claim energy that an earlier onset at a neighboring frequency
+        // a later-time onset can claim energy that an earlier onset at a neighbouring frequency
         // would otherwise have consumed.
         val onsetCandidates = mutableListOf<Pair<Int, Int>>()
         for (t in 0 until nTimes) {

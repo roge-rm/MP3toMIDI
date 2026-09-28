@@ -64,7 +64,7 @@ object ModelProvider {
         }
 
         destination.delete()
-        check(tempFile.renameTo(destination)) { "Failed to finalize downloaded model ${spec.fileName}" }
+        check(tempFile.renameTo(destination)) { "Failed to finalise downloaded model ${spec.fileName}" }
         destination
     }
 

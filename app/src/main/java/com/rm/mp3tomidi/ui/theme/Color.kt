@@ -10,8 +10,8 @@ val BrandPink = Color(0xFFFF4D9D)
 val BrandYellow = Color(0xFFFFC93C)
 val DangerRed = Color(0xFFE5484D)
 
-// Bright brand colors are for things they sit *behind* (gradients, filled chips, progress
-// fill) -- as text/icon color on a light background they're too low-contrast to read
+// Bright brand colours are for things they sit *behind* (gradients, filled chips, progress
+// fill) -- as text/icon colour on a light background they're too low-contrast to read
 // comfortably, so headings and body accents use BrandNavy instead.
 val BackgroundLavender = Color(0xFFF5F4FB)
 val SurfaceCard = Color(0xFFFFFFFF)
