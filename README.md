@@ -8,8 +8,8 @@ The way it works now is the song is split into 6 stems using Demucs and then tho
 This baby runs locally on your device (Android 8.1+) after downloading a few models and a stock soundfont. Conversions take many minutes (10+) on a midrange device and could be more on something worse. 
 You can use it as is if you like but you have been warned. 
 (Under Construction GIF here)
-Disclaimer: I am not a great programmer and this was made using Claude Opus 5.0/5.5
 
+Disclaimer: I am not a great programmer and this was made using Claude Opus 5.0/5.5
 
 Cheers
 
