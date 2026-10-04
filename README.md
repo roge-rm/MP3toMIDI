@@ -48,7 +48,7 @@ Cheers
 
 The easiest way to install MP3toMIDI and keep it up to date is through my F-Droid repo:
 
-[https://roge-rm.gitlab.io/repo](https://roge-rm.gitlab.io/repo?fingerprint=80438B253C257BCCE05CDCB9E3AC9B6174C2250659962B14FCBE7F32FD42D53E)
+[https://hunke.ws/fdroid/repo](https://hunke.ws/fdroid/repo?fingerprint=80438B253C257BCCE05CDCB9E3AC9B6174C2250659962B14FCBE7F32FD42D53E)
 
 Then search for MP3toMIDI in F-Droid. When a new version comes out, F-Droid will offer it as an update.
 
