@@ -9,8 +9,6 @@ This baby runs locally on your device (Android 8.1+) after downloading a few mod
 You can use it as is if you like but you have been warned. 
 (Under Construction GIF here)
 
-Disclaimer: I am not a great programmer and this was made using Claude Opus 5.0/5.5
-
 Cheers
 
 <img src="docs/screenshot-main.png" alt="MP3toMIDI main screen: a source MP3 and output filename selected, ready to convert" width="200" /> <img src="docs/screenshot-options.png" alt="MP3toMIDI's conversion options: per-stem processing toggles and a note-sensitivity slider" width="200" /> <img src="docs/screenshot-review.png" alt="MP3toMIDI's review-detected-instruments dialog, showing each stem's classified GM instrument, confidence, and note count before the MIDI file is written" width="200" /> <img src="docs/screenshot-play.png" alt="MP3toMIDI's MIDI playback screen: a converted file playing back through the default soundfont" width="200" />
@@ -146,3 +144,5 @@ This app wouldn't exist without these:
 ## License
 
 MIT, see [LICENSE](LICENSE).
+
+Disclaimer: I am not a great programmer and this was made using Claude Opus 5.0/5.5
