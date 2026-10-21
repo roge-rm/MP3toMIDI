@@ -3,44 +3,25 @@
 MP3toMIDI is a "proof of concept" idea I had where I wondered whether I could automate splitting stems from a real song and turning that into a decent MIDI file.
 So far the results are.. interesting, but nowhere near good. The files tend to be too busy to be enjoyable but the original song is usually recognisable.
 
-The way it works now is the song is split into 6 stems using Demucs and then those stems are shoved through a pitch transcriptor/drum hit identifier - this is then fed into a MIDI parser and a baby is made!
+It splits the song into six stems with Demucs, finds pitched notes and drum hits, then writes a MIDI file. It runs on Android 8.1 or newer after downloading the models and a soundfont. A conversion can take ten minutes or more on a midrange phone.
 
-This baby runs locally on your device (Android 8.1+) after downloading a few models and a stock soundfont. Conversions take many minutes (10+) on a midrange device and could be more on something worse. 
-You can use it as is if you like but you have been warned. 
-(Under Construction GIF here)
+You can try it as it is, but expect plenty of wrong and extra notes.
 
 Cheers
 
 <img src="docs/screenshot-main.png" alt="MP3toMIDI main screen: a source MP3 and output filename selected, ready to convert" width="200" /> <img src="docs/screenshot-options.png" alt="MP3toMIDI's conversion options: per-stem processing toggles and a note-sensitivity slider" width="200" /> <img src="docs/screenshot-review.png" alt="MP3toMIDI's review-detected-instruments dialog, showing each stem's classified GM instrument, confidence, and note count before the MIDI file is written" width="200" /> <img src="docs/screenshot-play.png" alt="MP3toMIDI's MIDI playback screen: a converted file playing back through the default soundfont" width="200" />
 
-## Features
+## What it does
 
-- Splits a song into 6 stems (drums, bass, vocals, guitar, piano and other) with Demucs'
-  `htdemucs_6s`, the best sounding version of it, running right on your phone.
-- Finds the notes in every pitched stem with Spotify's Basic Pitch, so chords come through
-  instead of just one note at a time.
-- Works out the drums hit by hit (kick, snare, closed hi-hat, crash/open hi-hat). Quiet hi-hats
-  still get picked up under loud kicks, and it was tuned on real songs from a bunch of genres,
-  not just test tones.
-- Finds the tempo from the drums, and doesn't get fooled into half or double time by breakbeats
-  and half-time grooves.
-- Guesses the instrument for each stem with Google's YAMNet and picks the closest General MIDI
-  sound. If YAMNet can't tell (synths mostly), it goes by the shape of the notes (bass, pad, lead
-  or pluck), and if that fails too, it uses a default for the stem.
-- Takes MP3, WAV, FLAC, AAC, OGG, Opus or anything else Android can play, and gives you a
-  standard MIDI file back.
-- Before converting you can pick which stems to use, how sensitive the note detection is, how
-  quiet a stem can be before it's thrown out, and how you want the output: one file on one track,
-  one file with a track per instrument, or a separate file for each stem.
-- Once it's done listening, you get to check what it found before anything is written. Each stem
-  shows its instrument, how sure it was and how many notes it found, and you can drop a stem,
-  pick a different instrument or fix the tempo.
-- Conversions keep going in the background, even if Android kills the app. Open it again and it
-  picks up where the conversion is. There's a cancel button too, which cleans up after itself.
-- A MIDI player with real soundfont playback, so you can hear what you got. It plays any `.mid`
-  file, not just ones from this app, with the default soundfont or your own `.sf2`.
-- Works offline after the first conversion. Demucs and YAMNet download once, get checked, and
-  stay on the phone. Basic Pitch is small enough to come with the app.
+- Splits drums, bass, vocals, guitar, piano and other sounds with Demucs `htdemucs_6s`.
+- Finds pitched notes and chords with Spotify's Basic Pitch, and identifies kick, snare, hi-hat and crash hits.
+- Estimates the tempo from the drums and the instrument from YAMNet, note shapes or a default for the stem.
+- Reads MP3, WAV, FLAC, AAC, OGG, Opus and other formats Android can play.
+- Lets you choose stems, detection sensitivity and output as one track, a track per instrument or separate files.
+- Shows the detected instruments, confidence and note counts before writing. You can remove stems, change instruments and fix the tempo.
+- Continues conversions in the background and can resume after the app is killed. Cancel removes the unfinished output.
+- Plays any MIDI file through the default soundfont or your own `.sf2`.
+- Works offline once the models and soundfont have downloaded. Basic Pitch comes with the app.
 
 ## Installing
 
@@ -62,12 +43,11 @@ page and sideload it.
   export JAVA_HOME=/path/to/android-studio/jbr
   ```
 - minSdk 27 / targetSdk 37.
-- A phone or emulator with a few GB of free RAM. Splitting the stems peaks around 750MB, it's
-  a real neural network after all.
+- A phone or emulator with a few GB of free RAM. Splitting the stems peaks around 750 MB.
 - Internet the first time you convert, for Demucs (~235MB) and YAMNet (~16MB), and the first time
   you open the player, for the default soundfont (~148MB). Not needed after that.
 
-## Building & testing
+## Building and testing
 
 ```
 ./gradlew assembleDebug        # build the debug APK
@@ -120,28 +100,28 @@ then run `./gradlew assembleRelease`.
 
 ## Attribution
 
-This app wouldn't exist without these:
+The app uses these models and libraries:
 
-- **[Demucs](https://github.com/facebookresearch/demucs)** (`htdemucs_6s`) by Meta/Facebook
+- [Demucs](https://github.com/facebookresearch/demucs) (`htdemucs_6s`) by Meta/Facebook
   Research, MIT License. Exported to ONNX to run on the phone, see
   `tools/demucs_export/README.md`.
-- **[Basic Pitch](https://github.com/spotify/basic-pitch)** by Spotify, Apache License 2.0.
+- [Basic Pitch](https://github.com/spotify/basic-pitch) by Spotify, Apache License 2.0.
   Comes with the app (it's only ~230KB), see `tools/basic_pitch_export/README.md`.
-- **[YAMNet](https://tfhub.dev/google/yamnet/1)** by Google, Apache License 2.0, using the
+- [YAMNet](https://tfhub.dev/google/yamnet/1) by Google, Apache License 2.0, using the
   [AudioSet](https://research.google.com/audioset/) categories. The ONNX version is from
   `zeropointnine/yamnet-onnx` on Hugging Face, checked against the original, see
   `tools/yamnet_export/README.md`.
-- **[ONNX Runtime Mobile](https://onnxruntime.ai/)** by Microsoft, MIT License. Runs all three
+- [ONNX Runtime Mobile](https://onnxruntime.ai/) by Microsoft, MIT License. Runs all three
   models.
-- **[FluidR3 GM](https://member.keymusician.com/Member/FluidR3_GM/)** soundfont by Frank Wen, MIT
+- [FluidR3 GM](https://member.keymusician.com/Member/FluidR3_GM/) soundfont by Frank Wen, MIT
   License. The player's default soundfont, downloaded the first time you use it.
-- **[TinySoundFont](https://github.com/schellingb/TinySoundFont)** by Bernhard Schelling, MIT
+- [TinySoundFont](https://github.com/schellingb/TinySoundFont) by Bernhard Schelling, MIT
   License. Included in `app/src/main/cpp/tsf.h`.
-- **[Oboe](https://github.com/google/oboe)** by Google, Apache License 2.0. Low-latency audio for
+- [Oboe](https://github.com/google/oboe) by Google, Apache License 2.0. Low-latency audio for
   the player.
 - Jetpack Compose, WorkManager, Media3 and the rest of AndroidX and Kotlin.
 
-## License
+## Licence
 
 MIT, see [LICENSE](LICENSE).
 
